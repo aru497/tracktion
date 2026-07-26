@@ -572,7 +572,7 @@ window.Views = (function () {
       </div>
       <div class="auth-formside">
         <div class="auth-card">
-          <img src="assets/img/wordmark.png" alt="4WDScout" style="height:38px;width:auto;margin-bottom:10px;display:block">
+          <img src="assets/img/wordmark.png?v=2" alt="4WDScout" style="height:38px;width:auto;margin-bottom:10px;display:block">
           <div class="hide"><span style="width:26px;height:26px">${logoSVG()}</span></div>
           <h2 class="display" style="font-size:26px;margin:14px 0 4px">Sign in to your garage</h2>
           <p class="muted" style="margin:0 0 20px">One tap with Google. Your rigs, alerts and saved tracks sync across every device.</p>
@@ -614,7 +614,7 @@ window.Views = (function () {
   function finishAuth(user) { Store.login(user); toast(`Welcome, ${user.name.split(' ')[0]}`); App.boot(); }
 
   function logoSVG() {
-    return `<img src="assets/img/logo.png" alt="4WDScout" draggable="false"
+    return `<img src="assets/img/logo.png?v=2" alt="4WDScout" draggable="false"
       style="width:100%;height:100%;object-fit:contain;border-radius:23%;display:block">`;
   }
 
