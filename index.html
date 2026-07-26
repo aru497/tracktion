@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#F7F5F1">
   <title>4WDScout — 4WD parts &amp; tracks, compared</title>
   <meta name="description" content="Compare 4WD parts across every Aussie retailer by your exact rig, and find the best tracks near you. Free.">
-  <link rel="icon" type="image/png" href="assets/img/logo.png?v=2">
-  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png?v=2">
+  <link rel="icon" type="image/png" href="assets/img/logo.png?v=3">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png?v=3">
   <meta property="og:title" content="4WDScout — 4WD parts &amp; tracks, compared">
   <meta property="og:image" content="assets/img/wordmark.png?v=2">
   <!-- Brand font -->
@@ -22,7 +22,21 @@
   <link rel="stylesheet" href="assets/css/app.css?v=2">
 </head>
 <body>
-  <div style="min-height:100vh;display:grid;place-items:center;color:#8A857C;font-family:system-ui">Loading 4WDScout…</div>
+  <style>
+    @keyframes spin4wd { to { transform: rotate(360deg); } }
+    @keyframes pulse4wd { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+    .boot { min-height: 100vh; display: grid; place-items: center; background: #F7F5F1; }
+    .boot .stackc { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    .boot .ringwrap { position: relative; width: 92px; height: 92px; }
+    .boot .ring { position: absolute; inset: 0; border-radius: 999px; border: 3px solid #E7E3DC; border-top-color: #B4460E; animation: spin4wd 0.9s linear infinite; }
+    .boot img { position: absolute; inset: 14px; width: 64px; height: 64px; border-radius: 16px; animation: pulse4wd 1.8s ease-in-out infinite; }
+    .boot .t { font-family: system-ui; font-weight: 600; color: #55514A; letter-spacing: -0.01em; }
+    .boot .t span { color: #B4460E; }
+  </style>
+  <div class="boot"><div class="stackc">
+    <div class="ringwrap"><div class="ring"></div><img src="assets/img/logo.png?v=3" alt=""></div>
+    <div class="t"><span>4WD</span>Scout</div>
+  </div></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

@@ -5,10 +5,11 @@ window.App = (function () {
   let mapObj = null, markers = [], curDiff = 'all';
 
   const TABS = [
-    { route: '/home',   label: 'Discover', ic: 'compass' },
-    { route: '/parts',  label: 'Parts',    ic: 'parts' },
-    { route: '/tracks', label: 'Tracks',   ic: 'map' },
-    { route: '/garage', label: 'Garage',   ic: 'garage' }
+    { route: '/home',      label: 'Discover',  ic: 'compass' },
+    { route: '/parts',     label: 'Parts',     ic: 'parts' },
+    { route: '/tracks',    label: 'Tracks',    ic: 'map' },
+    { route: '/community', label: 'Community', ic: 'user' },
+    { route: '/garage',    label: 'Garage',    ic: 'garage' }
   ];
 
   function routeParts() {
@@ -18,7 +19,7 @@ window.App = (function () {
 
   function currentTab() {
     const p = routeParts()[0] || 'home';
-    const map = { home: '/home', parts: '/parts', part: '/parts', tracks: '/tracks', track: '/tracks', garage: '/garage' };
+    const map = { home: '/home', parts: '/parts', part: '/parts', tracks: '/tracks', track: '/tracks', community: '/community', garage: '/garage' };
     return map[p] || '/home';
   }
 
@@ -52,16 +53,18 @@ window.App = (function () {
   // ---- render a view ----------------------------------------------------
   function render() {
     if (!Store.get().user) return mountAuth();
+    if (!Store.get().onboarded) return mountOnboard();
     const [p, arg] = routeParts();
     let v;
     switch (p) {
-      case 'parts':  v = Views.parts(arg); break;
-      case 'part':   v = Views.part(arg); break;
-      case 'tracks': v = Views.tracks(); break;
-      case 'track':  v = Views.track(arg); break;
-      case 'garage': v = Views.garage(); break;
+      case 'parts':     v = Views.parts(arg); break;
+      case 'part':      v = Views.part(arg); break;
+      case 'tracks':    v = Views.tracks(); break;
+      case 'track':     v = Views.track(arg); break;
+      case 'community': v = Views.community(arg); break;
+      case 'garage':    v = Views.garage(); break;
       case 'home':
-      default:       v = Views.home(); break;
+      default:          v = Views.home(); break;
     }
     const main = $('#main');
     main.innerHTML = v.html;
@@ -78,6 +81,15 @@ window.App = (function () {
     const v = Views.auth();
     root.innerHTML = v.html;
     v.after && v.after(root);
+  }
+
+  function mountOnboard() {
+    document.body.innerHTML = '<div id="root" class="app" style="padding-bottom:0"></div>';
+    const root = $('#root');
+    const v = Views.onboard();
+    root.innerHTML = v.html;
+    v.after && v.after(root);
+    UI.reveal(root);
   }
 
   function nav(route) { if (location.hash === '#' + route) render(); else location.hash = '#' + route; }

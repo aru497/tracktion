@@ -25,7 +25,7 @@ window.Views = (function () {
   }
 
   function thumb(p) {
-    return `<div class="thumb c-${p.category}">${icon(catById[p.category].glyph)}</div>`;
+    return `<div class="thumb c-${p.category}"><img src="assets/img/cat/${p.category}.jpg" alt="" loading="lazy"></div>`;
   }
 
   function partCard(p) {
@@ -49,9 +49,11 @@ window.Views = (function () {
     const s = Store.get(), rig = Store.activeRig(), loc = Store.location();
     const fitParts = rig ? DB.parts.filter(p => Store.fits(p) === true) : [];
     const showParts = (fitParts.length ? fitParts : DB.parts).slice(0, 4);
-    const near = [...DB.tracks]
-      .map(t => ({ t, d: loc ? distanceKm(loc, t) : null }))
-      .sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9)).slice(0, 3);
+    const prefs = Store.prefs();
+    const near = allTracks()
+      .map(t => ({ t, d: loc ? distanceKm(loc, t) : null, m: prefs ? Store.matchScore(t) : null }))
+      .sort((a, b) => prefs ? (b.m - a.m) : ((a.d ?? 1e9) - (b.d ?? 1e9)))
+      .slice(0, 3);
     const firstName = s.user ? s.user.name.split(' ')[0] : 'there';
     const activeAlerts = s.alerts.length;
 
@@ -123,21 +125,22 @@ window.Views = (function () {
         </div>
 
         <div class="spread" style="margin:32px 0 12px">
-          <h3 style="font-size:16px">Tracks near you</h3>
+          <h3 style="font-size:16px">${prefs ? 'Matched to your style' : 'Tracks near you'}</h3>
           <a class="meta" href="#/tracks" style="color:var(--clay)">Open map</a>
         </div>
         <div class="grid" style="grid-template-columns:1fr">
-          ${near.map(({t,d}) => trackRow(t, d)).join('')}
+          ${near.map(({t,d,m}) => trackRow(t, d, m)).join('')}
         </div>
         <div style="height:20px"></div>
       </div></div>` };
   }
 
-  function trackRow(t, d) {
+  function trackRow(t, d, m) {
     return `<a class="card card-hover reveal" href="#/track/${t.id}" style="display:flex;gap:0;overflow:hidden">
-      <div class="track-ico d-${t.difficulty}" style="border-radius:0;width:64px;background:var(--${t.difficulty}-wash);color:var(--${t.difficulty})">${icon(UI.typeIcon[t.type])}</div>
+      <div style="width:86px;flex:none;position:relative;overflow:hidden">
+        <img src="assets/img/terrain/${UI.typeIcon[t.type] ? t.type : 'forest'}.jpg" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></div>
       <div class="card-pad" style="flex:1;padding:14px 16px">
-        <div class="spread"><b style="font-size:15px">${esc(t.name)}</b>${d!=null?`<span class="tag">${d} km</span>`:''}</div>
+        <div class="spread"><b style="font-size:15px">${esc(t.name)}</b><span class="row" style="gap:6px">${m!=null?`<span class="tag tag-best">${m}% match</span>`:''}${d!=null?`<span class="tag">${d} km</span>`:''}</span></div>
         <div class="meta" style="margin:2px 0 8px">${esc(t.region)}, ${t.state}</div>
         <div class="row" style="gap:8px"><span class="tag d-${t.difficulty}"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span>
         <span class="tag">${icon('ruler')} ${t.lengthKm} km</span><span class="tag">${icon('clock')} ${t.hours}h</span></div>
@@ -399,9 +402,10 @@ window.Views = (function () {
     return { html: `<div class="view"><div class="wrap section">
       <a class="btn btn-ghost btn-sm" href="#/tracks" style="margin-bottom:16px">${icon('back')} Map</a>
       <div class="card" style="overflow:hidden">
-        <div style="position:relative;height:170px;background:var(--${t.difficulty}-wash);display:grid;place-items:center;color:var(--${t.difficulty})">
-          <div class="topo"></div>
-          <span style="position:relative;transform:scale(2.4)">${icon(UI.typeIcon[t.type])}</span>
+        <div style="position:relative;height:210px">
+          <img src="assets/img/terrain/${UI.typeIcon[t.type] ? t.type : 'forest'}.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(28,26,22,.55))"></div>
+          <span class="tag d-${t.difficulty}" style="position:absolute;left:14px;bottom:12px"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span>
         </div>
         <div class="card-pad">
           <div class="spread"><div><div class="eyebrow">${esc(t.region)}, ${t.state}</div>
@@ -614,9 +618,244 @@ window.Views = (function () {
   function finishAuth(user) { Store.login(user); toast(`Welcome, ${user.name.split(' ')[0]}`); App.boot(); }
 
   function logoSVG() {
-    return `<img src="assets/img/logo.png?v=2" alt="4WDScout" draggable="false"
+    return `<img src="assets/img/logo.png?v=3" alt="4WDScout" draggable="false"
       style="width:100%;height:100%;object-fit:contain;border-radius:23%;display:block">`;
   }
 
-  return { home, parts, part, tracks, track, garage, auth, trackById, difficultyOf: id => trackById[id]?.difficulty, logoSVG };
+  // ============================ ONBOARDING ============================
+  // 3 calm steps: your rig → where you are → what you love driving.
+  function onboard() {
+    const makes = [...new Set(DB.vehicles.map(v => v.make))];
+    const cities = [
+      ['Sydney, NSW', -33.87, 151.21], ['Newcastle, NSW', -32.93, 151.78], ['Brisbane, QLD', -27.47, 153.03],
+      ['Melbourne, VIC', -37.81, 144.96], ['Adelaide, SA', -34.93, 138.60], ['Perth, WA', -31.95, 115.86]
+    ];
+    const types = [['beach','Beach & dunes'],['mountain','High country'],['forest','Forest trails'],['river','River crossings'],['desert','Outback & desert']];
+    return { html: `<div class="view"><div class="wrap section" style="max-width:560px">
+      <div class="row" style="gap:10px;margin-bottom:8px"><span style="width:30px;height:30px">${logoSVG()}</span>
+        <span class="eyebrow">Set up your scout</span></div>
+
+      <div class="ob-step" data-step="1">
+        <h1 class="display" style="font-size:27px">First — what do you drive?</h1>
+        <p class="muted" style="margin:6px 0 20px">Your exact rig powers real fitment checks on every part.</p>
+        <div class="field" style="margin-bottom:12px"><label>Make</label>
+          <select class="input" id="ob_mk"><option value="">Select make…</option>${makes.map(m=>`<option>${m}</option>`).join('')}</select></div>
+        <div class="field" style="margin-bottom:12px"><label>Model</label>
+          <select class="input" id="ob_md" disabled><option>Select make first</option></select></div>
+        <div class="field" style="margin-bottom:20px"><label>Variant (optional)</label>
+          <select class="input" id="ob_vr" disabled><option>—</option></select></div>
+        <button class="btn btn-clay btn-block" id="ob_next1" disabled>Next ${icon('arrow')}</button>
+        <button class="btn btn-ghost btn-block" id="ob_skip1" style="margin-top:10px">I'll add it later</button>
+      </div>
+
+      <div class="ob-step hide" data-step="2">
+        <h1 class="display" style="font-size:27px">Where are you based?</h1>
+        <p class="muted" style="margin:6px 0 20px">We sort tracks, warnings and scouts by distance from you.</p>
+        <button class="btn btn-clay btn-block" id="ob_gps" style="margin-bottom:14px">${icon('pin')} Use my current location</button>
+        <div class="divider">or pick a city</div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px">
+          ${cities.map(c => `<button class="btn btn-ghost ob-city" data-lat="${c[1]}" data-lng="${c[2]}" data-l="${c[0]}">${c[0]}</button>`).join('')}
+        </div>
+      </div>
+
+      <div class="ob-step hide" data-step="3">
+        <h1 class="display" style="font-size:27px">What do you love driving?</h1>
+        <p class="muted" style="margin:6px 0 20px">Pick as many as you like — we'll match tracks to your style.</p>
+        <div class="chips" id="ob_types" style="margin-bottom:22px">
+          ${types.map(t=>`<button class="chip" data-t="${t[0]}" style="padding:11px 16px;font-size:14px">${icon(UI.typeIcon[t[0]])} ${t[1]}</button>`).join('')}
+        </div>
+        <div class="field" style="margin-bottom:22px"><label>How gnarly do you go?</label>
+          <div class="seg" id="ob_diff" style="width:100%;justify-content:stretch">
+            ${['easy','medium','hard','extreme'].map((d,i)=>`<button data-d="${d}" class="${d==='medium'?'on':''}" style="flex:1">${d[0].toUpperCase()+d.slice(1)}</button>`).join('')}
+          </div></div>
+        <div class="field" style="margin-bottom:24px"><label>Happy to travel</label>
+          <div class="seg" id="ob_range" style="width:100%">
+            ${[['150','~1.5 hrs'],['300','Half a day'],['800','Weekender'],['3000','Anywhere']].map((r,i)=>`<button data-r="${r[0]}" class="${i===1?'on':''}" style="flex:1">${r[1]}</button>`).join('')}
+          </div></div>
+        <button class="btn btn-clay btn-block" id="ob_done">${icon('check')} Find my tracks</button>
+      </div>
+    </div></div>`,
+    after(root) {
+      const show = (n) => $$('.ob-step', root).forEach(s => s.classList.toggle('hide', s.dataset.step != n));
+      // step 1 — rig
+      const mk=$('#ob_mk',root), md=$('#ob_md',root), vr=$('#ob_vr',root), next1=$('#ob_next1',root);
+      mk.addEventListener('change', () => {
+        const models = DB.vehicles.filter(v=>v.make===mk.value);
+        md.disabled=false; md.innerHTML=`<option value="">Select model…</option>`+models.map(v=>`<option value="${v.fitKey}">${v.model} (${v.years})</option>`).join('');
+        vr.disabled=true; vr.innerHTML='<option>—</option>'; next1.disabled=true;
+      });
+      md.addEventListener('change', () => {
+        const v=DB.vehicles.find(x=>x.fitKey===md.value);
+        if(!v){next1.disabled=true;return;}
+        vr.disabled=false; vr.innerHTML=`<option value="">Base / not sure</option>`+v.variants.map(x=>`<option>${x}</option>`).join('');
+        next1.disabled=false;
+      });
+      next1.addEventListener('click', () => {
+        const v=DB.vehicles.find(x=>x.fitKey===md.value); if(!v) return;
+        Store.addRig({make:v.make,model:v.model,fitKey:v.fitKey,variant:vr.value||'',years:v.years});
+        show(2);
+      });
+      $('#ob_skip1',root).addEventListener('click', ()=>show(2));
+      // step 2 — location
+      $('#ob_gps',root).addEventListener('click', () => {
+        if (!navigator.geolocation) { show(3); return; }
+        navigator.geolocation.getCurrentPosition(
+          p => { Store.setLocation({lat:p.coords.latitude,lng:p.coords.longitude,label:'Near you',source:'gps'}); show(3); },
+          () => { toast('Could not get location — pick a city', false); });
+      });
+      $$('.ob-city',root).forEach(b=>b.addEventListener('click',()=>{
+        Store.setLocation({lat:+b.dataset.lat,lng:+b.dataset.lng,label:b.dataset.l,source:'city'}); show(3);
+      }));
+      // step 3 — prefs
+      const picked=new Set();
+      $$('#ob_types .chip',root).forEach(c=>c.addEventListener('click',()=>{
+        c.classList.toggle('on'); c.classList.contains('on')?picked.add(c.dataset.t):picked.delete(c.dataset.t);
+      }));
+      const segOn=(sel)=>{ $$(sel+' button',root).forEach(b=>b.addEventListener('click',()=>$$(sel+' button',root).forEach(x=>x.classList.toggle('on',x===b)))); };
+      segOn('#ob_diff'); segOn('#ob_range');
+      $('#ob_done',root).addEventListener('click',()=>{
+        Store.setPrefs({
+          types:[...picked],
+          maxDiff: $('#ob_diff .on',root)?.dataset.d || 'medium',
+          range: +($('#ob_range .on',root)?.dataset.r || 300)
+        });
+        Store.setOnboarded();
+        toast("You're set — tracks matched to you");
+        location.hash = '#/home'; App.boot();
+      });
+    }};
+  }
+
+  // ============================ COMMUNITY ============================
+  const POST_TYPES = {
+    warning:   { label:'Warning',   ic:'shield', wash:'var(--hard-wash)',   ink:'var(--hard)' },
+    condition: { label:'Conditions',ic:'route',  wash:'var(--medium-wash)', ink:'var(--medium)' },
+    trip:      { label:'Trip report',ic:'compass',wash:'var(--easy-wash)',  ink:'var(--easy)' }
+  };
+  const ago = (t) => { const m=Math.floor((Date.now()-t)/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; };
+
+  function community(sub) {
+    const seg = sub === 'scouts' ? 'scouts' : 'feed';
+    const loc = Store.location();
+    const posts = Store.posts().map(p => ({ p, d: (loc&&p.lat!=null) ? distanceKm(loc,p) : null }))
+      .sort((a,b)=>(a.d??1e9)-(b.d??1e9) || b.p.createdAt-a.p.createdAt);
+    const scouts = Store.scouts().map(sc => {
+      const t = sc.trackId ? getTrack(sc.trackId) : null;
+      return { sc, t, d: (loc&&t) ? distanceKm(loc,t) : null };
+    }).sort((a,b)=>(new Date(a.sc.date))-(new Date(b.sc.date)));
+    const me = Store.get().user?.name;
+
+    const feedHtml = posts.length ? posts.map(({p,d}) => {
+      const T = POST_TYPES[p.type]||POST_TYPES.trip;
+      const trk = p.trackId ? getTrack(p.trackId) : null;
+      return `<div class="card card-pad reveal" style="margin-bottom:12px">
+        <div class="spread">
+          <span class="tag" style="background:${T.wash};color:${T.ink};border:0">${icon(T.ic)} ${T.label}</span>
+          <span class="meta" style="font-size:12px">${ago(p.createdAt)}${d!=null?` · ${d} km away`:''}</span>
+        </div>
+        <p style="margin:10px 0 8px;line-height:1.5">${esc(p.body)}</p>
+        <div class="row wrap-r" style="gap:8px">
+          ${trk?`<a class="tag" href="#/track/${trk.id}">${icon(UI.typeIcon[trk.type]||'map')} ${esc(trk.name)}</a>`:''}
+          ${p.label?`<span class="tag">${icon('pin')} ${esc(p.label)}</span>`:''}
+          <span class="tag">${icon('user')} ${esc(p.author)}${p.vehicle?` · ${esc(p.vehicle)}`:''}</span>
+        </div>
+      </div>`;
+    }).join('') : `<div class="card empty">${icon('compass')}<div>Nothing posted near you yet. Seen a washout, closure or bog hole? Warn the next crew.</div></div>`;
+
+    const scoutsHtml = scouts.length ? scouts.map(({sc,t,d}) => {
+      const joined = me && sc.members.includes(me);
+      const full = sc.capacity && sc.members.length >= sc.capacity;
+      return `<div class="card card-pad reveal" style="margin-bottom:12px">
+        <div class="spread"><b style="font-size:16px;letter-spacing:-.01em">${esc(sc.title)}</b>
+          <span class="tag ${joined?'tag-fit':''}">${sc.members.length}${sc.capacity?'/'+sc.capacity:''} going</span></div>
+        <div class="meta" style="margin:4px 0 10px">${new Date(sc.date).toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}${t?` · ${esc(t.name)}`:''}${d!=null?` · ${d} km away`:''} · hosted by ${esc(sc.host)}</div>
+        ${sc.notes?`<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(sc.notes)}</p>`:''}
+        <div class="row" style="gap:8px">
+          ${t?`<a class="btn btn-ghost btn-sm" href="#/track/${t.id}">View track</a>`:''}
+          ${(sc.host===me || sc.hostIsMe)
+            ? `<button class="btn btn-ghost btn-sm" data-delscout="${sc.id}">${icon('x')} Cancel scout</button>`
+            : `<button class="btn ${joined?'btn-ghost':'btn-clay'} btn-sm" data-join="${sc.id}" ${(!joined&&full)?'disabled':''}>${joined?'Leave':(full?'Full':'Join convoy')}</button>`}
+        </div>
+      </div>`;
+    }).join('') : `<div class="card empty">${icon('route')}<div>No scouts planned near you. Create one — solo trips are better as convoys.</div></div>`;
+
+    return { html: `<div class="view"><div class="wrap section">
+      <div class="spread">
+        <div><h1 class="display" style="font-size:26px">Community</h1>
+        <p class="muted" style="margin:4px 0 0">Warnings, track intel and convoys near ${loc?esc(loc.label):'you'}.</p></div>
+        <button class="btn btn-clay btn-sm" id="composebtn">${icon('plus')} ${seg==='scouts'?'New scout':'Post'}</button>
+      </div>
+      <div class="seg" style="margin:18px 0 18px">
+        <button class="${seg==='feed'?'on':''}" data-s="feed">${icon('compass')} Feed</button>
+        <button class="${seg==='scouts'?'on':''}" data-s="scouts">${icon('route')} Scouts</button>
+      </div>
+      ${seg==='feed'?feedHtml:scoutsHtml}
+      <div style="height:20px"></div>
+    </div></div>`,
+    after(root) {
+      $$('.seg [data-s]',root).forEach(b=>b.addEventListener('click',()=>App.nav('/community'+(b.dataset.s==='scouts'?'/scouts':''))));
+      $('#composebtn',root).addEventListener('click',()=> seg==='scouts'?openScoutSheet():openPostSheet());
+      $$('[data-join]',root).forEach(b=>b.addEventListener('click',()=>{
+        const r=Store.toggleScoutJoin(b.dataset.join);
+        if(r===null) toast('That convoy is full',false); else toast(r?'You’re in — see you out there':'Left the convoy');
+        App.render();
+      }));
+      $$('[data-delscout]',root).forEach(b=>b.addEventListener('click',()=>{ Store.removeScout(b.dataset.delscout); toast('Scout cancelled'); App.render(); }));
+    }};
+  }
+
+  function openPostSheet() {
+    const loc = Store.location(); const rig = Store.activeRig();
+    const sh = sheet(`
+      <h3 class="display" style="font-size:20px">Post to the community</h3>
+      <p class="muted" style="margin:6px 0 16px">Warnings save people's weekends (and diffs).</p>
+      <div class="chips" id="pt" style="margin-bottom:14px">
+        ${Object.entries(POST_TYPES).map(([k,v],i)=>`<button class="chip ${i===0?'on':''}" data-k="${k}">${icon(v.ic)} ${v.label}</button>`).join('')}
+      </div>
+      <div class="field" style="margin-bottom:12px"><label>What's happening out there?</label>
+        <textarea class="input" id="pbody" rows="3" placeholder="Deep washout on the second climb after the gate — passable with 33s+, sketchy in the wet."></textarea></div>
+      <div class="field" style="margin-bottom:18px"><label>Tag a track (optional)</label>
+        <select class="input" id="ptrack"><option value="">— none —</option>${allTracks().map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
+      <button class="btn btn-clay btn-block" id="psend">${icon('check')} Post it</button>
+    `);
+    $$('#pt .chip',sh.el).forEach(c=>c.addEventListener('click',()=>$$('#pt .chip',sh.el).forEach(x=>x.classList.toggle('on',x===c))));
+    $('#psend',sh.el).addEventListener('click',()=>{
+      const body=$('#pbody',sh.el).value.trim();
+      if(!body){$('#pbody',sh.el).focus();return toast('Say what you saw',false);}
+      const trackId=$('#ptrack',sh.el).value||null;
+      const t=trackId?getTrack(trackId):null;
+      Store.addPost({ type:$('#pt .on',sh.el).dataset.k, body, trackId,
+        lat: t?t.lat:(loc?loc.lat:null), lng: t?t.lng:(loc?loc.lng:null),
+        label: t?null:(loc?loc.label:null), vehicle: rig?rig.model:null });
+      sh.close(); toast('Posted — the crew thanks you'); App.render();
+    });
+  }
+
+  function openScoutSheet() {
+    const tomorrow = new Date(Date.now()+86400000*7).toISOString().slice(0,10);
+    const sh = sheet(`
+      <h3 class="display" style="font-size:20px">Create a scout</h3>
+      <p class="muted" style="margin:6px 0 16px">A convoy run anyone nearby can join.</p>
+      <div class="field" style="margin-bottom:12px"><label>Name it</label>
+        <input class="input" id="stitle" placeholder="Sunday sand run — beginners welcome"></div>
+      <div class="field" style="margin-bottom:12px"><label>Track</label>
+        <select class="input" id="strack">${allTracks().map(t=>`<option value="${t.id}">${esc(t.name)} (${t.difficulty})</option>`).join('')}</select></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field"><label>Date</label><input class="input" id="sdate" type="date" value="${tomorrow}"></div>
+        <div class="field"><label>Max rigs</label><select class="input" id="scap"><option value="">No limit</option>${[4,6,8,10,15].map(n=>`<option>${n}</option>`).join('')}</select></div>
+      </div>
+      <div class="field" style="margin-bottom:18px"><label>Notes (optional)</label>
+        <textarea class="input" id="snotes" rows="2" placeholder="Meet at the servo 7am. UHF 18. Bring boards + lunch."></textarea></div>
+      <button class="btn btn-clay btn-block" id="screate">${icon('route')} Create scout</button>
+    `);
+    $('#screate',sh.el).addEventListener('click',()=>{
+      const title=$('#stitle',sh.el).value.trim();
+      if(!title){$('#stitle',sh.el).focus();return toast('Give it a name',false);}
+      Store.addScout({ title, trackId:$('#strack',sh.el).value, date:$('#sdate',sh.el).value,
+        capacity:+($('#scap',sh.el).value||0)||null, notes:$('#snotes',sh.el).value.trim() });
+      sh.close(); toast('Scout created — it’s live for the crew'); App.nav('/community/scouts');
+    });
+  }
+
+  return { home, parts, part, tracks, track, garage, auth, onboard, community, trackById, difficultyOf: id => trackById[id]?.difficulty, logoSVG };
 })();

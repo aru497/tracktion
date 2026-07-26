@@ -18,6 +18,7 @@
  * -----------------------------------------------------------------------
  */
 import { writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -25,28 +26,21 @@ const API = 'https://api.firecrawl.dev/v1/scrape';
 const KEY = process.env.FIRECRAWL_API_KEY;
 const __dir = dirname(fileURLToPath(import.meta.url));
 
-// Each entry: a product + the retailer product URLs to price-check.
-// Populate `url` with the real product page on each retailer.
-const WATCHLIST = [
-  {
-    id: 'maxtrax-mkii',
-    name: 'MAXTRAX MKII Recovery Boards (pair)',
-    sources: [
-      { retailer: 'maxtrax',    url: 'https://maxtrax.com.au/products/maxtrax-mkii-black' },
-      { retailer: 'bcf',        url: 'https://www.bcf.com.au/p/maxtrax-mkii-recovery-boards/592031.html' },
-      { retailer: 'supercheap', url: 'https://www.supercheapauto.com.au/brands/maxtrax' },
-      { retailer: 'outback',    url: 'https://www.outbackequipment.com.au/brand/maxtrax/' }
-    ]
-  },
-  {
-    id: 'ome-bp51-lc300',
-    name: 'Old Man Emu BP-51 Suspension Kit — LC300',
-    sources: [
-      { retailer: 'arb', url: 'https://www.arb.com.au/product/ekbp00174-old-man-emu-bp-51-suspension-kit-toyota-landcruiser-300-series' }
-    ]
-  }
-  // ...add the rest of your catalogue here.
-];
+// The watchlist is generated from the app catalogue (assets/js/data.js):
+// every part × every retailer offer URL. Add products to data.js (or replace
+// an offer's url with a direct product page for a sharper hit) and the crawler
+// picks them up automatically — no separate list to maintain.
+function loadWatchlist() {
+  const src = readFileSync(join(__dir, '..', 'assets', 'js', 'data.js'), 'utf8');
+  const win = {};
+  new Function('window', src)(win);
+  return win.DB.parts.map(p => ({
+    id: p.id,
+    name: p.name,
+    sources: p.offers.map(o => ({ retailer: o.retailer, url: o.url }))
+  }));
+}
+const WATCHLIST = loadWatchlist();
 
 const PRICE_SCHEMA = {
   type: 'object',
@@ -101,7 +95,27 @@ async function run() {
   const file = join(__dir, '..', 'data', 'parts.crawled.json');
   await writeFile(file, JSON.stringify(out, null, 2));
   console.log(`\nWrote ${out.length} products → ${file}`);
-  console.log('Review, then merge the offers into assets/js/data.js.');
+
+  // --push: upsert crawled offers straight into Supabase (used by CI cron)
+  if (process.argv.includes('--push')) {
+    const SB_URL = process.env.SUPABASE_URL, SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!SB_URL || !SB_KEY) { console.error('Set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY for --push'); process.exit(1); }
+    const rows = out.flatMap(p => p.offers.map(o => ({
+      part_id: p.id, retailer_id: o.retailer, price: o.price, club_price: o.club,
+      stock: o.stock, url: o.url, crawled_at: p.crawledAt
+    })));
+    if (rows.length) {
+      const res = await fetch(`${SB_URL}/rest/v1/offers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+          Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify(rows)
+      });
+      console.log(`Supabase upsert: ${res.status} (${rows.length} offers)`);
+    } else console.log('No offers to push.');
+  } else {
+    console.log('Review, then merge into assets/js/data.js — or run with --push to update Supabase.');
+  }
 }
 
 run().catch(e => { console.error(e); process.exit(1); });

@@ -1,0 +1,33 @@
+# 4WDScout — scheduled price crawler
+# Runs daily, scrapes retailer product pages via Firecrawl, and upserts live
+# prices into the Supabase `offers` table (which feeds the app + price alerts).
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   FIRECRAWL_API_KEY           — from firecrawl.dev
+#   SUPABASE_URL                — https://ybicbvvloukajjgdqkpx.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY   — service key (server-side only, never shipped)
+name: Crawl retailer prices
+on:
+  schedule:
+    - cron: "0 19 * * *"   # 19:00 UTC = 5am AEST daily
+  workflow_dispatch: {}     # allow manual runs from the Actions tab
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Crawl + upsert offers
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node crawler/crawl.mjs --push
+      - name: Upload crawl artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: parts-crawled
+          path: data/parts.crawled.json
+          if-no-files-found: ignore

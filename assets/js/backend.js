@@ -32,14 +32,19 @@ window.Backend = (function () {
   // ---- read: hydrate Store from the user's rows -------------------------
   async function fetchState(uid) {
     curUid = uid;
-    const [g, a, sp, st, sug, prof] = await Promise.all([
+    const [g, a, sp, st, sug, prof, posts, scouts, members] = await Promise.all([
       sb.from('garage_vehicles').select('*').order('created_at'),
       sb.from('price_alerts').select('*'),
       sb.from('saved_parts').select('part_id'),
       sb.from('saved_tracks').select('track_id'),
       sb.from('track_suggestions').select('*').order('created_at', { ascending: false }),
-      sb.from('profiles').select('*').eq('id', uid).maybeSingle()
+      sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
+      sb.from('community_posts').select('*').order('created_at', { ascending: false }).limit(100),
+      sb.from('scouts').select('*').gte('date', new Date(Date.now() - 86400000).toISOString().slice(0, 10)).order('date'),
+      sb.from('scout_members').select('scout_id,member_name')
     ]);
+    const membersByScout = {};
+    (members.data || []).forEach(m => (membersByScout[m.scout_id] = membersByScout[m.scout_id] || []).push(m.member_name));
     const garage = (g.data || []).map(r => ({
       id: r.id, make: r.make, model: r.model, fitKey: r.fit_key,
       variant: r.variant || '', years: r.years || '',
@@ -62,6 +67,18 @@ window.Backend = (function () {
         difficulty: r.difficulty, type: r.type, lengthKm: r.length_km, hours: +r.hours,
         blurb: r.blurb, needs: r.needs || [], season: r.season, permit: r.permit, dog: r.dog,
         status: r.status, community: true, createdAt: Date.parse(r.created_at)
+      })),
+      prefs: prof.data?.prefs || null,
+      onboarded: !!(prof.data?.prefs),
+      posts: (posts.data || []).map(r => ({
+        id: r.id, type: r.type, body: r.body, trackId: r.track_id, lat: r.lat, lng: r.lng,
+        label: r.label, author: r.author || 'Scout', vehicle: r.vehicle, mine: r.user_id === uid,
+        createdAt: Date.parse(r.created_at)
+      })),
+      scouts: (scouts.data || []).map(r => ({
+        id: r.id, title: r.title, trackId: r.track_id, date: r.date, capacity: r.capacity,
+        notes: r.notes, host: r.host_name || 'Scout', hostIsMe: r.host_id === uid,
+        members: membersByScout[r.id] || [], createdAt: Date.parse(r.created_at)
       }))
     };
   }
@@ -125,6 +142,38 @@ window.Backend = (function () {
       async suggestionRemoved(_id, s) {
         // local ids are temporary; match the user's most recent matching row
         if (s) await sb.from('track_suggestions').delete().eq('user_id', uid).eq('name', s.name).eq('lat', s.lat).eq('lng', s.lng);
+        resync();
+      },
+      async prefsSet(p) {
+        await sb.from('profiles').update({ prefs: p }).eq('id', uid);
+      },
+      async postAdded(p) {
+        await sb.from('community_posts').insert({
+          user_id: uid, author: p.author, vehicle: p.vehicle, type: p.type, body: p.body,
+          track_id: p.trackId, lat: p.lat, lng: p.lng, label: p.label
+        });
+        resync();
+      },
+      async postRemoved(_id, p) {
+        if (p) await sb.from('community_posts').delete().eq('user_id', uid).eq('body', p.body);
+        resync();
+      },
+      async scoutAdded(sc) {
+        const { data } = await sb.from('scouts').insert({
+          host_id: uid, host_name: sc.host, title: sc.title, track_id: sc.trackId,
+          date: sc.date, capacity: sc.capacity, notes: sc.notes
+        }).select('id').single();
+        if (data) await sb.from('scout_members').insert({ scout_id: data.id, user_id: uid, member_name: sc.host });
+        resync();
+      },
+      async scoutJoinSet(id, joined) {
+        const me = (await sb.from('profiles').select('name').eq('id', uid).maybeSingle()).data?.name || 'Scout';
+        if (joined) await sb.from('scout_members').insert({ scout_id: id, user_id: uid, member_name: me });
+        else await sb.from('scout_members').delete().eq('scout_id', id).eq('user_id', uid);
+        resync();
+      },
+      async scoutRemoved(id) {
+        await sb.from('scouts').delete().eq('id', id).eq('host_id', uid);
         resync();
       }
     };

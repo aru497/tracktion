@@ -11,6 +11,9 @@ window.Store = (function () {
     savedParts: [],             // [partId]
     savedTracks: [],            // [trackId]
     suggestions: [],            // community-submitted tracks (track shape + status)
+    prefs: null,                // { types: [], maxDiff: 'medium', range: 300 }
+    posts: [],                  // community feed: warnings / conditions / trips
+    scouts: [],                 // events/convoys: { id,title,trackId,date,capacity,notes,host,members[] }
     location: null,             // { lat, lng, label, source }
     onboarded: false
   };
@@ -101,6 +104,55 @@ window.Store = (function () {
   function suggestions() { return state.suggestions || []; }
   function suggestionById(id) { return (state.suggestions || []).find(s => s.id === id) || null; }
 
+  // ---- preferences & track matching --------------------------------------
+  function setPrefs(p) { state.prefs = p; save(); fire('prefsSet', p); }
+  function prefs() { return state.prefs; }
+  const DIFF_N = { easy: 1, medium: 2, hard: 3, extreme: 4 };
+  // 0..100 match: terrain fit (45) + difficulty comfort (25) + proximity (30)
+  function matchScore(track, loc = state.location, p = state.prefs) {
+    if (!p) return null;
+    let s = 0;
+    if (p.types && p.types.length) s += p.types.includes(track.type) ? 45 : 12;
+    else s += 30;
+    const want = DIFF_N[p.maxDiff || 'medium'], got = DIFF_N[track.difficulty] || 2;
+    if (got <= want) s += got === want ? 25 : 18;         // within comfort; sweet spot = at your level
+    else s += Math.max(0, 25 - (got - want) * 12);         // above comfort: penalise
+    if (loc) {
+      const d = window.distanceKm(loc, track);
+      const range = p.range || 300;
+      s += Math.round(30 * Math.exp(-d / range));
+    } else s += 15;
+    return Math.min(100, Math.round(s));
+  }
+
+  // ---- community posts ----------------------------------------------------
+  function addPost(p) {
+    const post = { id: 'p_' + uid(), ...p, author: state.user ? state.user.name : 'Anon',
+      createdAt: Date.now() };
+    state.posts.unshift(post);
+    save(); fire('postAdded', post); return post;
+  }
+  function removePost(id) { const p = state.posts.find(x=>x.id===id); state.posts = state.posts.filter(x => x.id !== id); save(); fire('postRemoved', id, p); }
+  function posts() { return state.posts || []; }
+
+  // ---- scouts (events / convoys) ------------------------------------------
+  function addScout(sc) {
+    const me = state.user ? state.user.name : 'Anon';
+    const scout = { id: 'sc_' + uid(), ...sc, host: me, members: [me], createdAt: Date.now() };
+    state.scouts.unshift(scout);
+    save(); fire('scoutAdded', scout); return scout;
+  }
+  function toggleScoutJoin(id) {
+    const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
+    const me = state.user ? state.user.name : 'Anon';
+    const i = sc.members.indexOf(me);
+    if (i < 0) { if (sc.capacity && sc.members.length >= sc.capacity) return null; sc.members.push(me); }
+    else sc.members.splice(i, 1);
+    save(); fire('scoutJoinSet', id, i < 0); return i < 0;
+  }
+  function removeScout(id) { const s = state.scouts.find(x=>x.id===id); state.scouts = state.scouts.filter(x => x.id !== id); save(); fire('scoutRemoved', id, s); }
+  function scouts() { return state.scouts || []; }
+
   // ---- location ---------------------------------------------------------
   function setLocation(loc) { state.location = loc; save(); }
   function location() { return state.location; }
@@ -115,6 +167,9 @@ window.Store = (function () {
     toggleSavedPart, toggleSavedTrack,
     addAlert, removeAlert, alertFor, simulateDrop,
     addSuggestion, removeSuggestion, suggestions, suggestionById,
+    setPrefs, prefs, matchScore,
+    addPost, removePost, posts,
+    addScout, toggleScoutJoin, removeScout, scouts,
     setLocation, location, setOnboarded
   };
 })();
