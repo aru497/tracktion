@@ -479,11 +479,11 @@ window.Views = (function () {
         return `
         <div class="card garage-vehicle ${r.id===s.activeRigId?'':''}" style="${r.id===s.activeRigId?'border-color:var(--clay);box-shadow:0 0 0 3px var(--clay-wash)':''}">
           ${imgHtml}
-          <div class="grow stack"><b>${esc(r.name)}</b><span class="meta" style="font-size:12px">${esc(r.variant||'Base')} · ${r.years||''}</span></div>`;
-      }).join('')}
+          <div class="grow stack"><b>${esc(r.name)}</b><span class="meta" style="font-size:12px">${esc(r.variant||'Base')} · ${r.years||''}</span></div>
           ${r.id===s.activeRigId?'<span class="tag tag-fit">Active</span>':`<button class="btn btn-ghost btn-sm" data-active="${r.id}">Set active</button>`}
           <button class="btn btn-ghost btn-sm" data-remove="${r.id}" aria-label="Remove">${icon('x')}</button>
-        </div>`).join('')}</div>`
+        </div>`;
+      }).join('')}</div>`
         : `<div class="card empty">${icon('garage')}<div>No rigs yet. Add your 4WD to unlock real fitment checks.</div></div>`}
 
       <div class="spread" style="margin:28px 0 10px"><h3 style="font-size:16px">Price-drop alerts</h3></div>
