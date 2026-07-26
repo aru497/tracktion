@@ -28,7 +28,7 @@ window.App = (function () {
     const initials = s.user ? s.user.name.split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase() : 'ME';
     return `
     <header class="topbar"><div class="wrap">
-      <a class="brand" href="#/home"><span class="logo">${Views.logoSVG()}</span><b>Tracktion</b></a>
+      <a class="brand" href="#/home"><span class="logo">${Views.logoSVG()}</span><b><span class="fwd">4WD</span>Scout</b></a>
       <nav class="desknav" id="desknav">
         ${TABS.map(t => `<a href="#${t.route}" data-r="${t.route}">${t.label}</a>`).join('')}
       </nav>
@@ -86,13 +86,39 @@ window.App = (function () {
   function pinIcon(diff, suggested) {
     return L.divIcon({ className: '', html: `<div class="pin d-${diff}${suggested ? ' suggested' : ''}"></div>`, iconSize: [26, 26], iconAnchor: [13, 24] });
   }
+  // base map styles — terrain (topo, great for 4WD), satellite, dark (Strava-ish)
+  function baseLayers() {
+    return {
+      terrain: [L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        subdomains: 'abc', maxZoom: 17, attribution: '&copy; OpenTopoMap (CC-BY-SA)' })],
+      satellite: [
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 19, attribution: '&copy; Esri, Maxar, Earthstar Geographics' }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 19 })
+      ],
+      dark: [L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' })]
+    };
+  }
+  let baseGroup = [], curBase = 'terrain';
+  function setBase(name) {
+    if (!mapObj) return;
+    baseGroup.forEach(l => mapObj.removeLayer(l));
+    baseGroup = (baseLayers()[name] || baseLayers().terrain);
+    baseGroup.forEach(l => l.addTo(mapObj).bringToBack());
+    curBase = name;
+    document.body.classList.toggle('map-dark', name !== 'terrain');
+  }
   function initMap() {
     const loc = Store.location() || { lat: -33.87, lng: 151.21 };
     mapObj = L.map('map', { zoomControl: false, attributionControl: true }).setView([loc.lat, loc.lng], 6);
     L.control.zoom({ position: 'bottomright' }).addTo(mapObj);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
-    }).addTo(mapObj);
+    setBase(curBase);
+    $$('#mapstyle button').forEach(b => b.addEventListener('click', () => {
+      $$('#mapstyle button').forEach(x => x.classList.toggle('on', x === b));
+      setBase(b.dataset.base);
+    }));
     if (Store.location()) {
       L.marker([loc.lat, loc.lng], { icon: L.divIcon({ className: '', html: '<div class="pin me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }) })
         .addTo(mapObj).bindTooltip('You');

@@ -39,6 +39,7 @@
   --shadow:    0 1px 2px rgba(28,26,22,.03);
   --shadow-h:  0 6px 24px rgba(28,26,22,.07);
 
+  --brand: "Space Grotesk","SF Pro Display",-apple-system,"Helvetica Neue",sans-serif;
   --sans: "SF Pro Display","SF Pro Text",-apple-system,"Helvetica Neue","Segoe UI",system-ui,sans-serif;
   --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Georgia",serif;
   --mono:"SF Mono","JetBrains Mono",ui-monospace,"Menlo",monospace;
@@ -103,9 +104,12 @@ h1,h2,h3,h4 { margin: 0; letter-spacing: -0.02em; line-height: 1.12; }
   border-bottom: 1px solid var(--line);
 }
 .topbar .wrap { height: 58px; display: flex; align-items: center; gap: 16px; }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -0.02em; }
-.brand .logo { width: 26px; height: 26px; }
-.brand b { font-size: 17px; }
+.brand { display: flex; align-items: center; gap: 9px; letter-spacing: -0.01em; }
+.brand .logo { width: 28px; height: 28px; }
+.brand b { font-family: var(--brand); font-weight: 700; font-size: 18px; }
+.brand b .fwd { color: var(--clay); }
+.wordmark { font-family: var(--brand); font-weight: 700; letter-spacing: -0.01em; }
+.wordmark .fwd { color: var(--clay); }
 .loc-pill {
   display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
   padding: 6px 12px; border: 1px solid var(--line); background: var(--paper);
@@ -275,6 +279,15 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.5; }
 .map-filters { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 500; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .map-filters::-webkit-scrollbar { display: none; }
 .map-filters .chip { flex: none; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); box-shadow: var(--shadow); }
+.map-style { position: absolute; top: 56px; left: 12px; z-index: 500; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); box-shadow: var(--shadow-h); }
+.map-style button { font-size: 12px; padding: 6px 12px; }
+/* premium route pins that pop on any base */
+.pin { box-shadow: 0 2px 8px rgba(0,0,0,.45); }
+.map-dark .leaflet-container { background: #0d0d0f; }
+.map-dark .map-panel { background: #17161a; border-color: #2a2830; color: #e7e4de; }
+.map-dark .map-panel .track-mini { border-color: #2a2830; }
+.map-dark .map-panel b { color: #f3f0ea; }
+.map-dark .map-panel .meta { color: #9a958c; }
 
 /* leaflet marker pin */
 .pin { width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); }

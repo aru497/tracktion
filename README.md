@@ -1,6 +1,8 @@
-# Tracktion
+# 4WDScout
 
 **Compare 4WD parts across every Aussie retailer by your exact rig — then find the best tracks near you.** Free.
+
+*(The repo/folder is named `tracktion` for deploy stability; the product brand is **4WDScout**.)*
 
 A zero-dependency, install-nothing web app (plus Leaflet for the map). Built from a real user survey of NSW 4WD owners.
 

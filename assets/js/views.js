@@ -311,6 +311,11 @@ window.Views = (function () {
         <div class="map-filters" id="mapfilters">
           ${['all','easy','medium','hard','extreme'].map(d => `<button class="chip ${d==='all'?'on':''}" data-diff="${d}">${d==='all'?'All tracks':d[0].toUpperCase()+d.slice(1)}</button>`).join('')}
         </div>
+        <div class="map-style seg" id="mapstyle">
+          <button data-base="terrain" class="on">Terrain</button>
+          <button data-base="satellite">Satellite</button>
+          <button data-base="dark">Dark</button>
+        </div>
         <div id="map"></div>
         <div class="map-panel">
           <div class="handle"></div>
@@ -549,7 +554,7 @@ window.Views = (function () {
     return { html: `<div class="auth">
       <div class="auth-brandside">
         <div class="topo"></div>
-        <div style="position:relative" class="row"><span style="width:30px;height:30px">${logoSVG()}</span><b style="font-size:19px;letter-spacing:-.02em">Tracktion</b></div>
+        <div style="position:relative" class="row"><span style="width:34px;height:34px">${logoSVG()}</span><b class="wordmark" style="font-size:23px;color:#F7F5F1"><span style="color:#C9855F">4WD</span>Scout</b></div>
         <div style="position:relative">
           <div class="eyebrow" style="color:#C9855F">For people who air down</div>
           <h1 class="display" style="font-size:42px;line-height:1.05;margin:14px 0;max-width:14ch">Know it fits. Find the track.</h1>
@@ -563,7 +568,8 @@ window.Views = (function () {
       </div>
       <div class="auth-formside">
         <div class="auth-card">
-          <div class="row" style="gap:9px;margin-bottom:6px"><span style="width:26px;height:26px">${logoSVG()}</span><b style="font-size:16px">Tracktion</b></div>
+          <img src="assets/img/wordmark.png" alt="4WDScout" style="height:38px;width:auto;margin-bottom:10px;display:block">
+          <div class="hide"><span style="width:26px;height:26px">${logoSVG()}</span></div>
           <h2 class="display" style="font-size:26px;margin:14px 0 4px">Sign in to your garage</h2>
           <p class="muted" style="margin:0 0 20px">One tap with Google. Your rigs, alerts and saved tracks sync across every device.</p>
           <div class="auth-social">
@@ -604,7 +610,7 @@ window.Views = (function () {
   function finishAuth(user) { Store.login(user); toast(`Welcome, ${user.name.split(' ')[0]}`); App.boot(); }
 
   function logoSVG() {
-    return `<img src="assets/img/logo.png" alt="Tracktion" draggable="false"
+    return `<img src="assets/img/logo.png" alt="4WDScout" draggable="false"
       style="width:100%;height:100%;object-fit:contain;border-radius:23%;display:block">`;
   }
 
