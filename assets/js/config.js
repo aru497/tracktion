@@ -1,9 +1,8 @@
-/* Tracktion — runtime config.
- * Leave the Supabase fields blank to run fully offline (localStorage prototype).
- * Fill them in to switch on real accounts, cloud garage, and price-drop alerts.
- * These are PUBLIC values (safe to ship): the anon key is protected by RLS. */
+/* 4WDScout — runtime config.
+ * These are PUBLIC values (safe to ship): the anon key is protected by RLS.
+ * NEVER put the service_role or sb_secret_ key here — those bypass security. */
 window.TRACKTION_CONFIG = {
-  supabaseUrl: "",       // e.g. "https://abcdxyz.supabase.co"
-  supabaseAnonKey: "",   // your project's anon/public key
-  oauth: { google: true, apple: true }   // must also be enabled in Supabase Auth
+  supabaseUrl: "https://ybicbvvloukajjgdqkpx.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InliaWNidnZsb3VrYWpqZ2Rxa3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNjIxNjMsImV4cCI6MjEwMDYzODE2M30.LS-8XOb3cmyZFb2iZkMHJSdzcWceXp7RFMLGOY3TTow",
+  oauth: { google: true, apple: true }   // enable each under Supabase Auth → Providers
 };
