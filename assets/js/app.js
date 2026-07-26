@@ -5,22 +5,22 @@ window.App = (function () {
   let mapObj = null, markers = [], curDiff = 'all';
 
   const TABS = [
+    { route: '/community', label: 'Community', ic: 'user' },
     { route: '/home',      label: 'Discover',  ic: 'compass' },
     { route: '/parts',     label: 'Parts',     ic: 'parts' },
     { route: '/tracks',    label: 'Tracks',    ic: 'map' },
-    { route: '/community', label: 'Community', ic: 'user' },
     { route: '/garage',    label: 'Garage',    ic: 'garage' }
   ];
 
   function routeParts() {
-    const h = (location.hash || '#/home').replace(/^#/, '');
+    const h = (location.hash || '#/community').replace(/^#/, '');
     return h.split('/').filter(Boolean); // ['part','maxtrax-mkii']
   }
 
   function currentTab() {
-    const p = routeParts()[0] || 'home';
+    const p = routeParts()[0] || 'community';
     const map = { home: '/home', parts: '/parts', part: '/parts', tracks: '/tracks', track: '/tracks', community: '/community', garage: '/garage' };
-    return map[p] || '/home';
+    return map[p] || '/community';
   }
 
   // ---- chrome (top + bottom bars) --------------------------------------
@@ -29,7 +29,7 @@ window.App = (function () {
     const initials = s.user ? s.user.name.split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase() : 'ME';
     return `
     <header class="topbar"><div class="wrap">
-      <a class="brand" href="#/home"><span class="logo">${Views.logoSVG()}</span><b><span class="fwd">4WD</span>Scout</b></a>
+      <a class="brand" href="#/community"><span class="logo">${Views.logoSVG()}</span><b><span class="fwd">4WD</span>Scout</b></a>
       <nav class="desknav" id="desknav">
         ${TABS.map(t => `<a href="#${t.route}" data-r="${t.route}">${t.label}</a>`).join('')}
       </nav>
@@ -61,10 +61,9 @@ window.App = (function () {
       case 'part':      v = Views.part(arg); break;
       case 'tracks':    v = Views.tracks(); break;
       case 'track':     v = Views.track(arg); break;
-      case 'community': v = Views.community(arg); break;
-      case 'garage':    v = Views.garage(); break;
-      case 'home':
-      default:          v = Views.home(); break;
+      case 'home':      v = Views.home(); break;
+      case 'community':
+      default:          v = Views.community(arg); break;
     }
     const main = $('#main');
     main.innerHTML = v.html;
@@ -91,12 +90,11 @@ window.App = (function () {
       $('#locpill').addEventListener('click', openLocSheet);
     }
     
-    // Render the home view in the background so it's not empty
+    // Render the community view in the background so it's not empty
     const main = $('#main');
-    const homeView = Views.home();
-    main.innerHTML = homeView.html;
-    if (homeView.map) initMap();
-    homeView.after && homeView.after(main);
+    const bgView = Views.community();
+    main.innerHTML = bgView.html;
+    bgView.after && bgView.after(main);
 
     // Create a styled popup modal over the app
     const scrim = UI.el('<div class="scrim show" id="ob-scrim" style="z-index:9999; background:rgba(28,26,22,.8); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);"></div>');
@@ -268,8 +266,16 @@ window.App = (function () {
     try {
       const data = await Backend.fetchState(uid);
       // Mid-onboarding: absorb the fresh data quietly but do NOT re-render —
-      // a remount would throw the user back to step 1 of the wizard.
-      if (!Store.get().onboarded) { delete data.onboarded; delete data.prefs; Store.hydrate(data); return; }
+      if (!Store.get().onboarded && !data.onboarded) { delete data.onboarded; delete data.prefs; Store.hydrate(data); return; }
+      if (data.onboarded && !Store.get().onboarded) {
+        // If the other tab finished onboarding, close ours and render
+        Store.hydrate(data);
+        const obScrim = document.getElementById('ob-scrim');
+        if (obScrim) obScrim.remove();
+        const rootNode = document.getElementById('root');
+        if (rootNode) rootNode.remove();
+        return render();
+      }
       Store.hydrate(data);
       if (document.getElementById('main')) { render(); } else { mountApp(); }
     } catch (e) { console.warn('resync', e); }

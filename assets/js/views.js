@@ -473,10 +473,14 @@ window.Views = (function () {
 
       <div class="spread" style="margin-bottom:10px"><h3 style="font-size:16px">Your rigs</h3>
         <button class="btn btn-clay btn-sm" id="addrig">${icon('plus')} Add rig</button></div>
-      ${rigs.length ? `<div class="grid" style="grid-template-columns:1fr;gap:10px">${rigs.map(r => `
+      ${rigs.length ? `<div class="grid" style="grid-template-columns:1fr;gap:10px">${rigs.map(r => {
+        const dbRig = DB.vehicles.find(x => x.fitKey === r.fitKey);
+        const imgHtml = dbRig && dbRig.imgType ? `<img src="assets/img/vehicle_${dbRig.imgType}.jpg" style="width:46px;height:46px;border-radius:11px;object-fit:cover;">` : `<div class="rig-badge">${icon('garage')}</div>`;
+        return `
         <div class="card garage-vehicle ${r.id===s.activeRigId?'':''}" style="${r.id===s.activeRigId?'border-color:var(--clay);box-shadow:0 0 0 3px var(--clay-wash)':''}">
-          <div class="rig-badge">${icon('garage')}</div>
-          <div class="grow stack"><b>${esc(r.name)}</b><span class="meta" style="font-size:12px">${esc(r.variant||'Base')} · ${r.years||''}</span></div>
+          ${imgHtml}
+          <div class="grow stack"><b>${esc(r.name)}</b><span class="meta" style="font-size:12px">${esc(r.variant||'Base')} · ${r.years||''}</span></div>`;
+      }).join('')}
           ${r.id===s.activeRigId?'<span class="tag tag-fit">Active</span>':`<button class="btn btn-ghost btn-sm" data-active="${r.id}">Set active</button>`}
           <button class="btn btn-ghost btn-sm" data-remove="${r.id}" aria-label="Remove">${icon('x')}</button>
         </div>`).join('')}</div>`
@@ -638,6 +642,9 @@ window.Views = (function () {
       <div class="ob-step" data-step="1">
         <h1 class="display" style="font-size:27px">First — what do you drive?</h1>
         <p class="muted" style="margin:6px 0 20px">Your exact rig powers real fitment checks on every part.</p>
+        <div id="ob_img" style="height:140px; background:var(--paper-2); border-radius:12px; margin-bottom:16px; overflow:hidden; display:none; align-items:center; justify-content:center;">
+          <img src="" style="width:100%; height:100%; object-fit:cover;">
+        </div>
         <div class="field" style="margin-bottom:12px"><label>Make</label>
           <select class="input" id="ob_mk"><option value="">Select make…</option>${makes.map(m=>`<option>${m}</option>`).join('')}</select></div>
         <div class="field" style="margin-bottom:12px"><label>Model</label>
@@ -686,7 +693,18 @@ window.Views = (function () {
       });
       md.addEventListener('change', () => {
         const v=DB.vehicles.find(x=>x.fitKey===md.value);
-        if(!v){next1.disabled=true;return;}
+        const imgEl = $('#ob_img img', root);
+        if(!v){
+          next1.disabled=true;
+          $('#ob_img', root).style.display='none';
+          return;
+        }
+        if (imgEl && v.imgType) {
+          imgEl.src = `assets/img/vehicle_${v.imgType}.jpg`;
+          $('#ob_img', root).style.display='flex';
+        } else {
+          $('#ob_img', root).style.display='none';
+        }
         vr.disabled=false; vr.innerHTML=`<option value="">Base / not sure</option>`+v.variants.map(x=>`<option>${x}</option>`).join('');
         next1.disabled=false;
       });
@@ -724,7 +742,7 @@ window.Views = (function () {
         const obScrim = document.getElementById('ob-scrim');
         if (obScrim) obScrim.remove();
         root.remove();
-        location.hash = '#/home';
+        location.hash = '#/community';
         App.render();
       });
     }};
@@ -758,10 +776,17 @@ window.Views = (function () {
           <span class="meta" style="font-size:12px">${ago(p.createdAt)}${d!=null?` · ${d} km away`:''}</span>
         </div>
         <p style="margin:10px 0 8px;line-height:1.5">${esc(p.body)}</p>
-        <div class="row wrap-r" style="gap:8px">
+        <div class="row wrap-r" style="gap:8px; margin-bottom:8px">
           ${trk?`<a class="tag" href="#/track/${trk.id}">${icon(UI.typeIcon[trk.type]||'map')} ${esc(trk.name)}</a>`:''}
           ${p.label?`<span class="tag">${icon('pin')} ${esc(p.label)}</span>`:''}
           <span class="tag">${icon('user')} ${esc(p.author)}${p.vehicle?` · ${esc(p.vehicle)}`:''}</span>
+        </div>
+        ${p.comments && p.comments.length ? `<div class="divider" style="margin:10px 0"></div>` + p.comments.map(c => `
+          <div style="font-size:13px;margin-bottom:6px"><b>${esc(c.author)}</b>: <span class="muted">${esc(c.body)}</span></div>
+        `).join('') : ''}
+        <div class="row" style="gap:8px;margin-top:10px">
+          <input class="input" style="flex:1;padding:6px 12px;font-size:13px" placeholder="Add a comment..." data-cid="${p.id}">
+          <button class="btn btn-ghost btn-sm" data-csend="${p.id}">Reply</button>
         </div>
       </div>`;
     }).join('') : `<div class="card empty">${icon('compass')}<div>Nothing posted near you yet. Seen a washout, closure or bog hole? Warn the next crew.</div></div>`;
@@ -778,8 +803,17 @@ window.Views = (function () {
           ${t?`<a class="btn btn-ghost btn-sm" href="#/track/${t.id}">View track</a>`:''}
           ${(sc.host===me || sc.hostIsMe)
             ? `<button class="btn btn-ghost btn-sm" data-delscout="${sc.id}">${icon('x')} Cancel scout</button>`
-            : `<button class="btn ${joined?'btn-ghost':'btn-clay'} btn-sm" data-join="${sc.id}" ${(!joined&&full)?'disabled':''}>${joined?'Leave':(full?'Full':'Join convoy')}</button>`}
+            : (joined ? `<button class="btn btn-ghost btn-sm" data-join="${sc.id}">Leave</button>` :
+               (sc.inviteOnly ?
+                  (sc.requests && sc.requests.includes(me) ? `<button class="btn btn-ghost btn-sm" disabled>Requested</button>` : `<button class="btn btn-clay btn-sm" data-reqjoin="${sc.id}" ${(full)?'disabled':''}>${full?'Full':'Request to join'}</button>`)
+                  : `<button class="btn btn-clay btn-sm" data-join="${sc.id}" ${(full)?'disabled':''}>${full?'Full':'Join convoy'}</button>`))
+          }
         </div>
+        ${(sc.host===me || sc.hostIsMe) && sc.inviteOnly && sc.requests && sc.requests.length ? `
+          <div class="divider" style="margin:10px 0"></div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Pending requests:</div>
+          ${sc.requests.map(ru => `<div class="spread" style="margin-bottom:4px"><span class="meta">${esc(ru)}</span><button class="btn btn-ghost btn-sm" data-approve="${sc.id}" data-ru="${esc(ru)}">Approve</button></div>`).join('')}
+        ` : ''}
       </div>`;
     }).join('') : `<div class="card empty">${icon('route')}<div>No scouts planned near you. Create one — solo trips are better as convoys.</div></div>`;
 
@@ -803,6 +837,16 @@ window.Views = (function () {
         const r=Store.toggleScoutJoin(b.dataset.join);
         if(r===null) toast('That convoy is full',false); else toast(r?'You’re in — see you out there':'Left the convoy');
         App.render();
+      }));
+      $$('[data-csend]',root).forEach(b=>b.addEventListener('click',()=>{
+        const inp = $(`input[data-cid="${b.dataset.csend}"]`, root);
+        if (inp && inp.value.trim()) { Store.addComment(b.dataset.csend, inp.value.trim()); App.render(); }
+      }));
+      $$('[data-reqjoin]',root).forEach(b=>b.addEventListener('click',()=>{
+        Store.requestJoinScout(b.dataset.reqjoin); toast('Request sent to host'); App.render();
+      }));
+      $$('[data-approve]',root).forEach(b=>b.addEventListener('click',()=>{
+        Store.approveScoutRequest(b.dataset.approve, b.dataset.ru); toast('Approved ' + b.dataset.ru); App.render();
       }));
       $$('[data-delscout]',root).forEach(b=>b.addEventListener('click',()=>{ Store.removeScout(b.dataset.delscout); toast('Scout cancelled'); App.render(); }));
     }};
@@ -848,6 +892,9 @@ window.Views = (function () {
         <div class="field"><label>Date</label><input class="input" id="sdate" type="date" value="${tomorrow}"></div>
         <div class="field"><label>Max rigs</label><select class="input" id="scap"><option value="">No limit</option>${[4,6,8,10,15].map(n=>`<option>${n}</option>`).join('')}</select></div>
       </div>
+      <div class="field" style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="sinvite" style="width:20px;height:20px"><label for="sinvite" style="margin:0;font-size:15px;color:var(--text)">Invite-only (requires approval)</label>
+      </div>
       <div class="field" style="margin-bottom:18px"><label>Notes (optional)</label>
         <textarea class="input" id="snotes" rows="2" placeholder="Meet at the servo 7am. UHF 18. Bring boards + lunch."></textarea></div>
       <button class="btn btn-clay btn-block" id="screate">${icon('route')} Create scout</button>
@@ -856,7 +903,7 @@ window.Views = (function () {
       const title=$('#stitle',sh.el).value.trim();
       if(!title){$('#stitle',sh.el).focus();return toast('Give it a name',false);}
       Store.addScout({ title, trackId:$('#strack',sh.el).value, date:$('#sdate',sh.el).value,
-        capacity:+($('#scap',sh.el).value||0)||null, notes:$('#snotes',sh.el).value.trim() });
+        capacity:+($('#scap',sh.el).value||0)||null, notes:$('#snotes',sh.el).value.trim(), inviteOnly:$('#sinvite',sh.el).checked });
       sh.close(); toast('Scout created — it’s live for the crew'); App.nav('/community/scouts');
     });
   }

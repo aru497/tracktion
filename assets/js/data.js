@@ -30,23 +30,23 @@ window.DB = (function () {
   // ---- Vehicles (from survey: Toyota/Ford/Mitsubishi/Nissan/Isuzu) -------
   // fitKey lets parts declare exactly which rigs they fit.
   const vehicles = [
-    { make: "Toyota", model: "LandCruiser 300 Series", years: "2021–now", fitKey: "lc300",  variants: ["GX","GXL","VX","Sahara","GR Sport"] },
-    { make: "Toyota", model: "LandCruiser 79 Series",  years: "2007–now", fitKey: "lc79",   variants: ["Workmate","GX","GXL"] },
-    { make: "Toyota", model: "LandCruiser 100 Series", years: "1998–2007",fitKey: "lc100",  variants: ["GXL","Sahara"] },
-    { make: "Toyota", model: "Prado 150 Series",       years: "2009–2023",fitKey: "prado150",variants: ["GX","GXL","VX","Kakadu"] },
-    { make: "Toyota", model: "Prado 250 Series",       years: "2024–now", fitKey: "prado250",variants: ["GX","GXL","VX","Altitude","Kakadu"] },
-    { make: "Toyota", model: "HiLux",                  years: "2015–now", fitKey: "hilux",  variants: ["Workmate","SR","SR5","Rogue","GR Sport"] },
-    { make: "Toyota", model: "Fortuner",               years: "2015–now", fitKey: "fortuner",variants: ["GX","GXL","Crusade"] },
-    { make: "Ford",   model: "Ranger (Next-Gen)",      years: "2022–now", fitKey: "ranger_ng",variants: ["XL","XLS","XLT","Sport","Wildtrak","Raptor"] },
-    { make: "Ford",   model: "Ranger PX",              years: "2011–2022",fitKey: "ranger_px",variants: ["XL","XLS","XLT","Wildtrak"] },
-    { make: "Ford",   model: "Everest",                years: "2015–now", fitKey: "everest", variants: ["Ambiente","Trend","Sport","Platinum"] },
-    { make: "Mitsubishi", model: "Triton MR",          years: "2024–now", fitKey: "triton_mr",variants: ["GLX","GLX+","GLS","GSR"] },
-    { make: "Mitsubishi", model: "Triton MQ/MR (2015–23)", years: "2015–2023", fitKey: "triton_mq", variants: ["GLX","GLS","GSR"] },
-    { make: "Mitsubishi", model: "Pajero Sport",       years: "2015–now", fitKey: "pajerosport",variants: ["GLX","GLS","Exceed","GSR"] },
-    { make: "Nissan", model: "Patrol Y62",             years: "2013–now", fitKey: "patrol_y62",variants: ["Ti","Ti-L","Warrior"] },
-    { make: "Nissan", model: "Navara",                 years: "2015–now", fitKey: "navara",  variants: ["SL","ST","ST-X","PRO-4X"] },
-    { make: "Isuzu",  model: "D-Max",                  years: "2020–now", fitKey: "dmax",    variants: ["SX","LS-M","LS-U","X-Terrain","Blade"] },
-    { make: "Isuzu",  model: "MU-X",                   years: "2020–now", fitKey: "mux",     variants: ["LS-M","LS-U","LS-T"] }
+    { make: "Toyota", model: "LandCruiser 300 Series", years: "2021–now", fitKey: "lc300",  imgType: "wagon", variants: ["GX","GXL","VX","Sahara","GR Sport"] },
+    { make: "Toyota", model: "LandCruiser 79 Series",  years: "2007–now", fitKey: "lc79",   imgType: "hardcore", variants: ["Workmate","GX","GXL"] },
+    { make: "Toyota", model: "LandCruiser 100 Series", years: "1998–2007",fitKey: "lc100",  imgType: "wagon", variants: ["GXL","Sahara"] },
+    { make: "Toyota", model: "Prado 150 Series",       years: "2009–2023",fitKey: "prado150",imgType: "wagon", variants: ["GX","GXL","VX","Kakadu"] },
+    { make: "Toyota", model: "Prado 250 Series",       years: "2024–now", fitKey: "prado250",imgType: "wagon", variants: ["GX","GXL","VX","Altitude","Kakadu"] },
+    { make: "Toyota", model: "HiLux",                  years: "2015–now", fitKey: "hilux",  imgType: "ute", variants: ["Workmate","SR","SR5","Rogue","GR Sport"] },
+    { make: "Toyota", model: "Fortuner",               years: "2015–now", fitKey: "fortuner",imgType: "wagon", variants: ["GX","GXL","Crusade"] },
+    { make: "Ford",   model: "Ranger (Next-Gen)",      years: "2022–now", fitKey: "ranger_ng",imgType: "ute", variants: ["XL","XLS","XLT","Sport","Wildtrak","Raptor"] },
+    { make: "Ford",   model: "Ranger PX",              years: "2011–2022",fitKey: "ranger_px",imgType: "ute", variants: ["XL","XLS","XLT","Wildtrak"] },
+    { make: "Ford",   model: "Everest",                years: "2015–now", fitKey: "everest", imgType: "wagon", variants: ["Ambiente","Trend","Sport","Platinum"] },
+    { make: "Mitsubishi", model: "Triton MR",          years: "2024–now", fitKey: "triton_mr",imgType: "ute", variants: ["GLX","GLX+","GLS","GSR"] },
+    { make: "Mitsubishi", model: "Triton MQ/MR (2015–23)", years: "2015–2023", fitKey: "triton_mq", imgType: "ute", variants: ["GLX","GLS","GSR"] },
+    { make: "Mitsubishi", model: "Pajero Sport",       years: "2015–now", fitKey: "pajerosport",imgType: "wagon", variants: ["GLX","GLS","Exceed","GSR"] },
+    { make: "Nissan", model: "Patrol Y62",             years: "2013–now", fitKey: "patrol_y62",imgType: "wagon", variants: ["Ti","Ti-L","Warrior"] },
+    { make: "Nissan", model: "Navara",                 years: "2015–now", fitKey: "navara",  imgType: "ute", variants: ["SL","ST","ST-X","PRO-4X"] },
+    { make: "Isuzu",  model: "D-Max",                  years: "2020–now", fitKey: "dmax",    imgType: "ute", variants: ["SX","LS-M","LS-U","X-Terrain","Blade"] },
+    { make: "Isuzu",  model: "MU-X",                   years: "2020–now", fitKey: "mux",     imgType: "wagon", variants: ["LS-M","LS-U","LS-T"] }
   ];
   const allFitKeys = vehicles.map(v => v.fitKey);
 

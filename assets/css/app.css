@@ -7,45 +7,47 @@
 
 :root {
   /* Canvas & surfaces */
-  --bone:      #F7F5F1;   /* warm off-white canvas */
+  --bone:      #F7F7F9;   /* cool off-white canvas */
   --paper:     #FFFFFF;   /* card surface */
-  --paper-2:   #FBFAF7;   /* recessed surface */
-  --ink:       #1C1A16;   /* near-black warm */
-  --ink-2:     #55514A;   /* secondary text */
-  --ink-3:     #8A857C;   /* muted / meta */
-  --line:      #E7E3DC;   /* borders / dividers */
-  --line-2:    #EFEBE4;
+  --paper-2:   #F0F0F5;   /* recessed surface */
+  --ink:       #242428;   /* dark gray text */
+  --ink-2:     #666666;   /* secondary text */
+  --ink-3:     #8F8F94;   /* muted / meta */
+  --line:      #E6E6EB;   /* borders / dividers */
+  --line-2:    #F0F0F5;
 
-  /* Rugged accent — outback clay */
-  --clay:      #B4460E;
-  --clay-ink:  #7A2F0A;
-  --clay-wash: #F6E9E1;
-  --olive:     #5A6650;   /* topographic green */
-  --olive-wash:#EBEEE7;
+  /* Strava accent — orange */
+  --clay:      #FC4C02;
+  --clay-ink:  #C83C00;
+  --clay-wash: #FFF0E6;
+  --olive:     #1B753A;   /* Strava green accent */
+  --olive-wash:#E8F1EC;
 
-  /* Difficulty scale (earthy, muted) */
-  --easy:      #4B7F52;  --easy-wash:  #E9F0E9;
-  --medium:    #B8862E;  --medium-wash:#F6EEDC;
-  --hard:      #B4460E;  --hard-wash:  #F6E9E1;
-  --extreme:   #4A2418;  --extreme-wash:#EDE4DF;
+  /* Difficulty scale (high contrast) */
+  --easy:      #1B753A;  --easy-wash:  #E8F1EC;
+  --medium:    #F68B29;  --medium-wash:#FEF3E9;
+  --hard:      #FC4C02;  --hard-wash:  #FFF0E6;
+  --extreme:   #242428;  --extreme-wash:#E9E9EA;
 
   /* Semantic */
-  --good:      #2F7D4F;
-  --good-wash: #E7F1EA;
+  --good:      #1B753A;
+  --good-wash: #E8F1EC;
 
-  --radius:    12px;
-  --radius-sm: 8px;
-  --radius-lg: 18px;
-  --shadow:    0 1px 2px rgba(28,26,22,.03);
-  --shadow-h:  0 6px 24px rgba(28,26,22,.07);
+  /* Strava-like sharp radii */
+  --radius:    8px;
+  --radius-sm: 4px;
+  --radius-lg: 12px;
+  --shadow:    0 1px 3px rgba(0,0,0,.04);
+  --shadow-h:  0 8px 24px rgba(0,0,0,.08);
 
-  --brand: "Space Grotesk","SF Pro Display",-apple-system,"Helvetica Neue",sans-serif;
-  --sans: "SF Pro Display","SF Pro Text",-apple-system,"Helvetica Neue","Segoe UI",system-ui,sans-serif;
-  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Georgia",serif;
-  --mono:"SF Mono","JetBrains Mono",ui-monospace,"Menlo",monospace;
+  /* Performance Typography */
+  --brand: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --serif: var(--sans);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
   --maxw: 1120px;
-  --nav-h: 60px;
+  --nav-h: 64px;
 }
 
 * { box-sizing: border-box; }
@@ -64,19 +66,16 @@ button { font-family: inherit; cursor: pointer; }
 img { max-width: 100%; display: block; }
 :focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; border-radius: 4px; }
 
-/* topographic contour backdrop (used on hero/auth) */
+/* topographic contour backdrop (used on hero/auth) - muted for Strava look */
 .topo {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background-image:
-    repeating-radial-gradient(circle at 30% 20%, transparent 0 38px, rgba(90,102,80,.05) 38px 39px),
-    repeating-radial-gradient(circle at 78% 72%, transparent 0 46px, rgba(180,70,14,.045) 46px 47px);
-  opacity: .9;
+  background: var(--bone); /* solid background instead of map lines */
 }
 
 /* ---------- Typography ---------- */
-h1,h2,h3,h4 { margin: 0; letter-spacing: -0.02em; line-height: 1.12; }
-.display { font-family: var(--serif); font-weight: 500; letter-spacing: -0.03em; }
-.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+h1,h2,h3,h4 { margin: 0; letter-spacing: -0.01em; line-height: 1.12; font-weight: 700; color: #000; }
+.display { font-family: var(--sans); font-weight: 800; letter-spacing: -0.02em; text-transform: capitalize; }
+.eyebrow { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
 .muted { color: var(--ink-2); }
 .meta  { color: var(--ink-3); font-size: 13px; }
 .mono  { font-family: var(--mono); }
@@ -286,6 +285,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.5; }
 /* premium route pins that pop on any base */
 .pin { box-shadow: 0 2px 8px rgba(0,0,0,.45); }
 .map-dark .leaflet-container { background: #0d0d0f; }
+.leaflet-container { transform: translate3d(0,0,0); isolation: isolate; }
 .map-dark .map-panel { background: #17161a; border-color: #2a2830; color: #e7e4de; }
 .map-dark .map-panel .track-mini { border-color: #2a2830; }
 .map-dark .map-panel b { color: #f3f0ea; }

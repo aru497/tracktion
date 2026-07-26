@@ -12,8 +12,11 @@ window.Store = (function () {
     savedTracks: [],            // [trackId]
     suggestions: [],            // community-submitted tracks (track shape + status)
     prefs: null,                // { types: [], maxDiff: 'medium', range: 300 }
-    posts: [],                  // community feed: warnings / conditions / trips
-    scouts: [],                 // events/convoys: { id,title,trackId,date,capacity,notes,host,members[] }
+    posts: [
+      { id: 'p_fake1', type: 'warning', author: 'DmaxDan', trackId: 'yalwal', lat: -34.87, lng: 150.42, body: 'Huge tree down blocking the main track. Winch or chainsaw required to get through.', createdAt: Date.now() - 14400000, comments: [] },
+      { id: 'p_fake2', type: 'condition', author: 'PradoPete', trackId: 'stockton', lat: -32.80, lng: 152.00, body: 'Sand is extremely soft at the entrance today. Air down to 15psi before you hit the soft stuff.', createdAt: Date.now() - 7200000, comments: [ { author: 'Sandy', body: 'Thanks for the heads up!', createdAt: Date.now() - 3600000 } ] }
+    ],                  // community feed: warnings / conditions / trips
+    scouts: [],                 // events/convoys: { id,title,trackId,date,capacity,notes,host,members[],inviteOnly,requests[] }
     location: null,             // { lat, lng, label, source }
     onboarded: false
   };
@@ -128,17 +131,25 @@ window.Store = (function () {
   // ---- community posts ----------------------------------------------------
   function addPost(p) {
     const post = { id: 'p_' + uid(), ...p, author: state.user ? state.user.name : 'Anon',
-      createdAt: Date.now() };
+      createdAt: Date.now(), comments: [] };
     state.posts.unshift(post);
     save(); fire('postAdded', post); return post;
   }
   function removePost(id) { const p = state.posts.find(x=>x.id===id); state.posts = state.posts.filter(x => x.id !== id); save(); fire('postRemoved', id, p); }
+  function addComment(postId, body) {
+    const p = state.posts.find(x=>x.id===postId);
+    if (!p) return null;
+    if (!p.comments) p.comments = [];
+    const c = { author: state.user ? state.user.name : 'Anon', body, createdAt: Date.now() };
+    p.comments.push(c);
+    save(); fire('commentAdded', postId, c); return c;
+  }
   function posts() { return state.posts || []; }
 
   // ---- scouts (events / convoys) ------------------------------------------
   function addScout(sc) {
     const me = state.user ? state.user.name : 'Anon';
-    const scout = { id: 'sc_' + uid(), ...sc, host: me, members: [me], createdAt: Date.now() };
+    const scout = { id: 'sc_' + uid(), ...sc, host: me, members: [me], requests: [], createdAt: Date.now() };
     state.scouts.unshift(scout);
     save(); fire('scoutAdded', scout); return scout;
   }
@@ -146,9 +157,33 @@ window.Store = (function () {
     const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
     const me = state.user ? state.user.name : 'Anon';
     const i = sc.members.indexOf(me);
-    if (i < 0) { if (sc.capacity && sc.members.length >= sc.capacity) return null; sc.members.push(me); }
+    if (i < 0) { 
+      if (sc.inviteOnly) return false; // Handled by requestJoinScout
+      if (sc.capacity && sc.members.length >= sc.capacity) return null; 
+      sc.members.push(me); 
+    }
     else sc.members.splice(i, 1);
     save(); fire('scoutJoinSet', id, i < 0); return i < 0;
+  }
+  function requestJoinScout(id) {
+    const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
+    const me = state.user ? state.user.name : 'Anon';
+    if (!sc.requests) sc.requests = [];
+    if (!sc.requests.includes(me) && !sc.members.includes(me)) {
+      sc.requests.push(me);
+      save(); fire('scoutRequested', id, me); return true;
+    }
+    return false;
+  }
+  function approveScoutRequest(id, reqUser) {
+    const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
+    if (sc.capacity && sc.members.length >= sc.capacity) return false;
+    if (sc.requests && sc.requests.includes(reqUser)) {
+      sc.requests = sc.requests.filter(u => u !== reqUser);
+      if (!sc.members.includes(reqUser)) sc.members.push(reqUser);
+      save(); fire('scoutApproved', id, reqUser); return true;
+    }
+    return false;
   }
   function removeScout(id) { const s = state.scouts.find(x=>x.id===id); state.scouts = state.scouts.filter(x => x.id !== id); save(); fire('scoutRemoved', id, s); }
   function scouts() { return state.scouts || []; }
@@ -168,8 +203,8 @@ window.Store = (function () {
     addAlert, removeAlert, alertFor, simulateDrop,
     addSuggestion, removeSuggestion, suggestions, suggestionById,
     setPrefs, prefs, matchScore,
-    addPost, removePost, posts,
-    addScout, toggleScoutJoin, removeScout, scouts,
+    addPost, removePost, addComment, posts,
+    addScout, toggleScoutJoin, requestJoinScout, approveScoutRequest, removeScout, scouts,
     setLocation, location, setOnboarded
   };
 })();
