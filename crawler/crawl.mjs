@@ -114,7 +114,7 @@ async function run() {
       stock: o.stock, url: o.url, crawled_at: p.crawledAt
     })));
     if (rows.length) {
-      const res = await fetch(`${SB_URL}/rest/v1/offers`, {
+      const res = await fetch(`${SB_URL}/rest/v1/offers?on_conflict=part_id,retailer_id`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
           Prefer: 'resolution=merge-duplicates' },
