@@ -83,8 +83,8 @@ window.App = (function () {
   function nav(route) { if (location.hash === '#' + route) render(); else location.hash = '#' + route; }
 
   // ---- map --------------------------------------------------------------
-  function pinIcon(diff) {
-    return L.divIcon({ className: '', html: `<div class="pin d-${diff}"></div>`, iconSize: [26, 26], iconAnchor: [13, 24] });
+  function pinIcon(diff, suggested) {
+    return L.divIcon({ className: '', html: `<div class="pin d-${diff}${suggested ? ' suggested' : ''}"></div>`, iconSize: [26, 26], iconAnchor: [13, 24] });
   }
   function initMap() {
     const loc = Store.location() || { lat: -33.87, lng: 151.21 };
@@ -109,24 +109,25 @@ window.App = (function () {
   function drawMarkers() {
     markers.forEach(m => mapObj.removeLayer(m)); markers = [];
     const loc = Store.location();
-    const list = DB.tracks
+    const source = DB.tracks.concat(Store.suggestions());
+    const list = source
       .filter(t => curDiff === 'all' || t.difficulty === curDiff)
       .map(t => ({ t, d: loc ? distanceKm(loc, t) : null }))
       .sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9));
     list.forEach(({ t }) => {
-      const m = L.marker([t.lat, t.lng], { icon: pinIcon(t.difficulty) }).addTo(mapObj);
+      const m = L.marker([t.lat, t.lng], { icon: pinIcon(t.difficulty, t.community) }).addTo(mapObj);
       m.on('click', () => nav('/track/' + t.id));
-      m.bindTooltip(t.name, { direction: 'top', offset: [0, -20] });
+      m.bindTooltip(t.community ? t.name + ' (your suggestion)' : t.name, { direction: 'top', offset: [0, -20] });
       markers.push(m);
     });
     // panel list
     const lst = $('#trklist');
     if (lst) {
       lst.innerHTML = list.map(({ t, d }) => `<a class="track-mini" href="#/track/${t.id}">
-        <div class="track-ico d-${t.difficulty}" style="background:var(--${t.difficulty}-wash);color:var(--${t.difficulty})">${icon(UI.typeIcon[t.type])}</div>
+        <div class="track-ico d-${t.difficulty}" style="background:var(--${t.difficulty}-wash);color:var(--${t.difficulty})">${icon(UI.typeIcon[t.type] || 'map')}</div>
         <div class="grow"><div class="spread"><b style="font-size:14.5px">${UI.esc(t.name)}</b>${d!=null?`<span class="meta">${d} km</span>`:''}</div>
         <div class="meta" style="font-size:12px">${UI.esc(t.region)}, ${t.state}</div>
-        <div class="row" style="gap:6px;margin-top:5px"><span class="tag d-${t.difficulty}" style="font-size:9px"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span><span class="tag" style="font-size:9px">${t.lengthKm}km · ${t.hours}h</span></div></div>
+        <div class="row" style="gap:6px;margin-top:5px"><span class="tag d-${t.difficulty}" style="font-size:9px"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span><span class="tag" style="font-size:9px">${t.lengthKm}km · ${t.hours}h</span>${t.community?'<span class="tag" style="font-size:9px;background:var(--olive-wash);color:var(--olive);border:0">Yours</span>':''}</div></div>
       </a>`).join('');
       $('#trkcount').textContent = `${list.length} track${list.length!==1?'s':''}`;
       const nr = $('#trknear'); if (nr && loc) nr.textContent = `nearest ${list[0]?.d ?? '–'} km`;

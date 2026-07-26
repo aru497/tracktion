@@ -32,11 +32,12 @@ window.Backend = (function () {
   // ---- read: hydrate Store from the user's rows -------------------------
   async function fetchState(uid) {
     curUid = uid;
-    const [g, a, sp, st, prof] = await Promise.all([
+    const [g, a, sp, st, sug, prof] = await Promise.all([
       sb.from('garage_vehicles').select('*').order('created_at'),
       sb.from('price_alerts').select('*'),
       sb.from('saved_parts').select('part_id'),
       sb.from('saved_tracks').select('track_id'),
+      sb.from('track_suggestions').select('*').order('created_at', { ascending: false }),
       sb.from('profiles').select('*').eq('id', uid).maybeSingle()
     ]);
     const garage = (g.data || []).map(r => ({
@@ -55,7 +56,13 @@ window.Backend = (function () {
         createdAt: Date.parse(r.created_at)
       })),
       savedParts: (sp.data || []).map(r => r.part_id),
-      savedTracks: (st.data || []).map(r => r.track_id)
+      savedTracks: (st.data || []).map(r => r.track_id),
+      suggestions: (sug.data || []).map(r => ({
+        id: r.id, name: r.name, region: r.region, state: r.state, lat: r.lat, lng: r.lng,
+        difficulty: r.difficulty, type: r.type, lengthKm: r.length_km, hours: +r.hours,
+        blurb: r.blurb, needs: r.needs || [], season: r.season, permit: r.permit, dog: r.dog,
+        status: r.status, community: true, createdAt: Date.parse(r.created_at)
+      }))
     };
   }
 
@@ -106,6 +113,19 @@ window.Backend = (function () {
       async savedTrackSet(id, on) {
         on ? await sb.from('saved_tracks').upsert({ user_id: uid, track_id: id })
            : await sb.from('saved_tracks').delete().eq('user_id', uid).eq('track_id', id);
+      },
+      async suggestionAdded(s) {
+        await sb.from('track_suggestions').insert({
+          user_id: uid, name: s.name, region: s.region, state: s.state, lat: s.lat, lng: s.lng,
+          difficulty: s.difficulty, type: s.type, length_km: s.lengthKm, hours: s.hours,
+          blurb: s.blurb, needs: s.needs, season: s.season, permit: s.permit, dog: s.dog, status: 'pending'
+        });
+        resync();
+      },
+      async suggestionRemoved(_id, s) {
+        // local ids are temporary; match the user's most recent matching row
+        if (s) await sb.from('track_suggestions').delete().eq('user_id', uid).eq('name', s.name).eq('lat', s.lat).eq('lng', s.lng);
+        resync();
       }
     };
   }

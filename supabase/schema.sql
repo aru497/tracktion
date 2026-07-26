@@ -146,6 +146,30 @@ create table if not exists saved_tracks (
   primary key (user_id, track_id)
 );
 
+-- community-submitted routes (moderated before they go public)
+create table if not exists track_suggestions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  name        text not null,
+  region      text,
+  state       text,
+  lat         double precision,
+  lng         double precision,
+  difficulty  text,
+  type        text,
+  length_km   int,
+  hours       numeric(4,1),
+  blurb       text,
+  needs       text[] default '{}',
+  season      text,
+  permit      boolean default false,
+  dog         boolean default false,
+  status      text default 'pending',   -- pending | approved | rejected
+  created_at  timestamptz default now()
+);
+create index if not exists suggestions_user_idx on track_suggestions(user_id);
+create index if not exists suggestions_approved_idx on track_suggestions(status) where status = 'approved';
+
 -- ---------------------------------------------------------------------------
 -- Auto-create a profile row on signup
 -- ---------------------------------------------------------------------------
@@ -215,6 +239,16 @@ begin
     execute format('create policy "own rows %1$s" on %1$s using (auth.uid() = user_id) with check (auth.uid() = user_id)', t);
   end loop;
 end $$;
+
+-- Suggestions: anyone can read APPROVED routes; users read + write their own.
+alter table track_suggestions enable row level security;
+drop policy if exists "read own or approved" on track_suggestions;
+create policy "read own or approved" on track_suggestions for select
+  using (auth.uid() = user_id or status = 'approved');
+drop policy if exists "insert own suggestion" on track_suggestions;
+create policy "insert own suggestion" on track_suggestions for insert with check (auth.uid() = user_id);
+drop policy if exists "delete own suggestion" on track_suggestions;
+create policy "delete own suggestion" on track_suggestions for delete using (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- Convenience view: a part with its lowest current price (for lists)

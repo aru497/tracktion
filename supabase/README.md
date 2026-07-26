@@ -46,6 +46,20 @@ select cron.schedule('tracktion-alerts', '0 * * * *',   -- hourly
 ```
 Keep prices fresh by running `crawler/crawl.mjs` on a schedule too (it upserts `offers`).
 
+## Community routes (moderation)
+Users submit tracks via **Suggest a route** — stored in `track_suggestions` with `status = 'pending'`. RLS lets a user see their own submissions (any status) plus anyone's `approved` ones. To publish a suggestion:
+```sql
+-- review, then approve
+update track_suggestions set status = 'approved' where id = '<uuid>';
+-- optionally promote it into the public tracks catalog
+insert into tracks (id, name, region, state, lat, lng, difficulty, type, length_km, hours, permit, dog, blurb, needs, season)
+select 'usr_'||left(id::text,8), name, region, state, lat, lng, difficulty, type, length_km, hours, permit, dog, blurb, needs, season
+from track_suggestions where id = '<uuid>';
+```
+
+## Google sign-in (the primary path)
+The login screen leads with **Continue with Google**. Enable it in Supabase → Auth → Providers → Google (add your OAuth client ID/secret from Google Cloud), then add your site + Vercel URLs under Auth → URL Configuration → Redirect URLs. Apple and email magic-link are the fallbacks.
+
 ## Data model (RLS summary)
 | Table | Read | Write |
 |---|---|---|

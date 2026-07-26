@@ -188,13 +188,14 @@ h1,h2,h3,h4 { margin: 0; letter-spacing: -0.02em; line-height: 1.12; }
 /* ---------- Inputs ---------- */
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field label { font-size: 13px; color: var(--ink-2); font-weight: 550; }
-.input, select.input {
+.input, select.input, textarea.input {
   width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: var(--paper); color: var(--ink); font-size: 15px; font-family: inherit;
   transition: border-color .16s, box-shadow .16s;
   -webkit-appearance: none; appearance: none;
 }
-.input:focus, select.input:focus { border-color: var(--clay); box-shadow: 0 0 0 3px var(--clay-wash); outline: none; }
+textarea.input { resize: vertical; min-height: 72px; line-height: 1.5; }
+.input:focus, select.input:focus, textarea.input:focus { border-color: var(--clay); box-shadow: 0 0 0 3px var(--clay-wash); outline: none; }
 .input::placeholder { color: var(--ink-3); }
 .searchbar {
   display: flex; align-items: center; gap: 10px; padding: 12px 15px;
@@ -280,6 +281,7 @@ h1,h2,h3,h4 { margin: 0; letter-spacing: -0.02em; line-height: 1.12; }
 .pin.d-easy { background: var(--easy);} .pin.d-medium { background: var(--medium);}
 .pin.d-hard { background: var(--hard);} .pin.d-extreme { background: var(--extreme);}
 .pin.me { background: #2f6fed; border-radius: 50%; transform: none; }
+.pin.suggested { box-shadow: 0 0 0 2px var(--olive), 0 2px 6px rgba(0,0,0,.3); }
 
 /* ---------- Garage ---------- */
 .garage-vehicle { display: flex; align-items: center; gap: 14px; padding: 16px; }
@@ -312,6 +314,9 @@ h1,h2,h3,h4 { margin: 0; letter-spacing: -0.02em; line-height: 1.12; }
   font-weight: 550; font-size: 14.5px; transition: border-color .16s, transform .1s;
 }
 .sso:hover { border-color: var(--ink-3); } .sso:active { transform: scale(.99); }
+.sso-google { padding: 14px; font-weight: 650; font-size: 15.5px; border-color: var(--ink-3); box-shadow: var(--shadow); }
+.sso-google:hover { border-color: var(--ink); box-shadow: var(--shadow-h); }
+.sso-google svg { width: 20px; height: 20px; }
 .divider { display: flex; align-items: center; gap: 14px; color: var(--ink-3); font-size: 12px; margin: 4px 0; }
 .divider::before, .divider::after { content: ""; height: 1px; background: var(--line); flex: 1; }
 .stat-strip { display: flex; gap: 28px; }

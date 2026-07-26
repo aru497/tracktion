@@ -7,6 +7,9 @@ window.Views = (function () {
   const catById  = Object.fromEntries(DB.categories.map(c => [c.id, c]));
   const partById = Object.fromEntries(DB.parts.map(p => [p.id, p]));
   const trackById= Object.fromEntries(DB.tracks.map(t => [t.id, t]));
+  // official tracks + the user's own community suggestions
+  const getTrack = (id) => trackById[id] || Store.suggestionById(id);
+  const allTracks = () => DB.tracks.concat(Store.suggestions());
 
   // effective (lowest) price for a part across its offers
   const bestOffer = (p) => p.offers.reduce((m, o) => (priceOf(o) < priceOf(m) ? o : m));
@@ -311,18 +314,83 @@ window.Views = (function () {
         <div id="map"></div>
         <div class="map-panel">
           <div class="handle"></div>
-          <div class="spread" style="padding:2px 16px 8px"><b id="trkcount">${DB.tracks.length} tracks</b><span class="meta" id="trknear"></span></div>
+          <div class="spread" style="padding:2px 16px 8px">
+            <div class="stack"><b id="trkcount">${DB.tracks.length} tracks</b><span class="meta" id="trknear"></span></div>
+            <button class="btn btn-clay btn-sm" id="suggestbtn">${icon('plus')} Suggest</button>
+          </div>
           <div class="scroll" id="trklist"></div>
         </div>
       </div>
-    </div>`, map: true };
+    </div>`, map: true,
+    after(root) {
+      const b = root.querySelector('#suggestbtn');
+      b && b.addEventListener('click', () => openSuggestSheet());
+    }};
+  }
+
+  // ---- suggest a route (community) --------------------------------------
+  function openSuggestSheet() {
+    const loc = Store.location();
+    const diffs = ['easy','medium','hard','extreme'];
+    const types = ['forest','mountain','beach','desert','river'];
+    const states = ['NSW','VIC','QLD','SA','WA','TAS','NT','ACT'];
+    const sh = sheet(`
+      <h3 class="display" style="font-size:20px">Suggest a route</h3>
+      <p class="muted" style="margin:6px 0 16px">Share a track with the community. It shows on your map straight away and goes to review before it's public.</p>
+      <div class="field" style="margin-bottom:12px"><label>Track name</label><input class="input" id="s_name" placeholder="e.g. Watagans — Georges Rd"></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field"><label>Region</label><input class="input" id="s_region" placeholder="Central Coast"></div>
+        <div class="field"><label>State</label><select class="input" id="s_state">${states.map(s=>`<option ${s==='NSW'?'selected':''}>${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field"><label>Difficulty</label><select class="input" id="s_diff">${diffs.map(d=>`<option value="${d}">${d[0].toUpperCase()+d.slice(1)}</option>`).join('')}</select></div>
+        <div class="field"><label>Terrain</label><select class="input" id="s_type">${types.map(t=>`<option value="${t}">${t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select></div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field"><label>Length (km)</label><input class="input" id="s_len" type="number" inputmode="decimal" placeholder="20"></div>
+        <div class="field"><label>Time (hrs)</label><input class="input" id="s_hrs" type="number" inputmode="decimal" placeholder="4"></div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
+        <div class="field"><label>Latitude</label><input class="input" id="s_lat" type="number" inputmode="decimal" value="${loc?loc.lat.toFixed(4):''}" placeholder="-33.03"></div>
+        <div class="field"><label>Longitude</label><input class="input" id="s_lng" type="number" inputmode="decimal" value="${loc?loc.lng.toFixed(4):''}" placeholder="151.38"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="s_here" style="margin:0 0 14px">${icon('pin')} Use my current location</button>
+      <div class="field" style="margin-bottom:12px"><label>What's it like?</label><textarea class="input" id="s_blurb" rows="3" placeholder="Rock steps, a couple of water crossings, great riverside camp at the end."></textarea></div>
+      <div class="field" style="margin-bottom:18px"><label>What you'll need (comma separated)</label><input class="input" id="s_needs" placeholder="High clearance, Recovery gear, Snorkel"></div>
+      <button class="btn btn-clay btn-block" id="s_submit">${icon('check')} Submit route</button>
+    `);
+    $('#s_here', sh.el).addEventListener('click', () => {
+      if (!navigator.geolocation) return toast('Geolocation not available', false);
+      navigator.geolocation.getCurrentPosition(p => {
+        $('#s_lat', sh.el).value = p.coords.latitude.toFixed(4);
+        $('#s_lng', sh.el).value = p.coords.longitude.toFixed(4);
+        toast('Pinned to your location');
+      }, () => toast('Could not get location', false));
+    });
+    $('#s_submit', sh.el).addEventListener('click', () => {
+      const v = (id) => $('#' + id, sh.el).value.trim();
+      const name = v('s_name'), lat = parseFloat(v('s_lat')), lng = parseFloat(v('s_lng'));
+      if (!name) { $('#s_name', sh.el).focus(); return toast('Give it a name', false); }
+      if (isNaN(lat) || isNaN(lng)) { $('#s_lat', sh.el).focus(); return toast('Add a location', false); }
+      Store.addSuggestion({
+        name, region: v('s_region') || '—', state: v('s_state'),
+        difficulty: v('s_diff'), type: v('s_type'),
+        lengthKm: +v('s_len') || 0, hours: +v('s_hrs') || 0, lat, lng,
+        blurb: v('s_blurb') || 'Community-submitted route.',
+        needs: v('s_needs') ? v('s_needs').split(',').map(x => x.trim()).filter(Boolean) : ['High clearance'],
+        season: 'Check conditions', permit: false, dog: false
+      });
+      sh.close(); toast('Thanks — route added to your map');
+      if (window.App) App.render();
+    });
   }
 
   // ========================== TRACK DETAIL ==========================
   function track(id) {
-    const t = trackById[id]; if (!t) return { html: `<div class="wrap section">Track not found.</div>` };
+    const t = getTrack(id); if (!t) return { html: `<div class="wrap section">Track not found.</div>` };
     const loc = Store.location(), d = loc ? distanceKm(loc, t) : null;
     const saved = Store.get().savedTracks.includes(t.id);
+    const community = !!t.community;
     return { html: `<div class="view"><div class="wrap section">
       <a class="btn btn-ghost btn-sm" href="#/tracks" style="margin-bottom:16px">${icon('back')} Map</a>
       <div class="card" style="overflow:hidden">
@@ -341,6 +409,7 @@ window.Views = (function () {
             <span class="tag">${icon('clock')} ${t.hours}h</span>
             ${d!=null?`<span class="tag">${icon('pin')} ${d} km away</span>`:''}
             ${t.permit?`<span class="tag tag-best">Permit required</span>`:''}
+            ${community?`<span class="tag" style="background:var(--olive-wash);color:var(--olive);border:0">${icon('user')} Community · pending review</span>`:''}
           </div>
           <p class="muted" style="margin:16px 0 0">${esc(t.blurb)}</p>
         </div>
@@ -375,6 +444,7 @@ window.Views = (function () {
     const s = Store.get(), rigs = s.garage;
     const savedParts = s.savedParts.map(id => partById[id]).filter(Boolean);
     const savedTracks = s.savedTracks.map(id => trackById[id]).filter(Boolean);
+    const mySuggestions = s.suggestions || [];
 
     const alertsHtml = s.alerts.length ? s.alerts.map(a => {
       const p = partById[a.partId];
@@ -414,6 +484,19 @@ window.Views = (function () {
       ${savedTracks.length ? `<div class="grid" style="grid-template-columns:1fr">${savedTracks.map(t => trackRow(t, Store.location()?distanceKm(Store.location(),t):null)).join('')}</div>`
         : `<div class="card empty">${icon('map')}<div>No saved tracks yet.</div></div>`}
 
+      <div class="spread" style="margin:28px 0 10px"><h3 style="font-size:16px">Your suggested routes</h3>
+        <button class="btn btn-clay btn-sm" id="suggestbtn2">${icon('plus')} Suggest</button></div>
+      ${mySuggestions.length ? `<div class="grid" style="grid-template-columns:1fr;gap:10px">${mySuggestions.map(t => `
+        <div class="card" style="display:flex;gap:0;overflow:hidden;align-items:stretch">
+          <a class="track-ico d-${t.difficulty}" href="#/track/${t.id}" style="border-radius:0;width:60px;background:var(--${t.difficulty}-wash);color:var(--${t.difficulty})">${icon(UI.typeIcon[t.type]||'map')}</a>
+          <a class="card-pad" href="#/track/${t.id}" style="flex:1;padding:12px 14px">
+            <div class="spread"><b style="font-size:14.5px">${esc(t.name)}</b><span class="tag" style="background:var(--olive-wash);color:var(--olive);border:0">Pending</span></div>
+            <div class="meta" style="font-size:12px">${esc(t.region)}, ${t.state} · ${t.difficulty}</div>
+          </a>
+          <button class="btn btn-ghost btn-sm" data-delsug="${t.id}" aria-label="Remove" style="border:0;border-left:1px solid var(--line);border-radius:0">${icon('x')}</button>
+        </div>`).join('')}</div>`
+        : `<div class="card empty">${icon('route')}<div>No routes suggested yet. Know a good track? Add it — it shows on your map instantly.</div></div>`}
+
       <div style="height:20px"></div>
       <button class="btn btn-ghost btn-block" id="signout">Sign out</button>
       <div style="height:24px"></div>
@@ -423,6 +506,8 @@ window.Views = (function () {
       $$('[data-active]', root).forEach(b => b.addEventListener('click', () => { Store.setActiveRig(b.dataset.active); App.nav('/garage'); toast('Active rig switched'); }));
       $$('[data-remove]', root).forEach(b => b.addEventListener('click', () => { Store.removeRig(b.dataset.remove); App.nav('/garage'); }));
       $$('[data-drop]', root).forEach(b => b.addEventListener('click', () => { Store.simulateDrop(b.dataset.drop); App.nav('/garage'); toast('Price dropped — alert triggered'); App.refreshChrome(); }));
+      $$('[data-delsug]', root).forEach(b => b.addEventListener('click', () => { Store.removeSuggestion(b.dataset.delsug); App.nav('/garage'); toast('Route removed'); }));
+      $('#suggestbtn2', root).addEventListener('click', () => openSuggestSheet());
       $('#signout', root).addEventListener('click', () => { location.hash = ''; App.signOut(); });
     }};
   }
@@ -479,17 +564,17 @@ window.Views = (function () {
       <div class="auth-formside">
         <div class="auth-card">
           <div class="row" style="gap:9px;margin-bottom:6px"><span style="width:26px;height:26px">${logoSVG()}</span><b style="font-size:16px">Tracktion</b></div>
-          <h2 class="display" style="font-size:26px;margin:14px 0 4px">Get started free</h2>
-          <p class="muted" style="margin:0 0 22px">No credit card. Your garage syncs across devices.</p>
+          <h2 class="display" style="font-size:26px;margin:14px 0 4px">Sign in to your garage</h2>
+          <p class="muted" style="margin:0 0 20px">One tap with Google. Your rigs, alerts and saved tracks sync across every device.</p>
           <div class="auth-social">
-            <button class="sso" data-p="Google">${UI.ICON.google} Continue with Google</button>
+            <button class="sso sso-google" data-p="Google">${UI.ICON.google} Continue with Google</button>
             <button class="sso" data-p="Apple">${UI.ICON.apple} Continue with Apple</button>
           </div>
-          <div class="divider">or</div>
+          <div class="divider">or use email instead</div>
           <div class="field" style="margin-bottom:10px"><label>Name</label><input class="input" id="nm" placeholder="Jordan"></div>
-          <div class="field" style="margin-bottom:16px"><label>Email</label><input class="input" id="em" type="email" placeholder="you@example.com"></div>
-          <button class="btn btn-clay btn-block" id="emailgo">${icon('mail')} Continue with email</button>
-          <p class="meta" style="text-align:center;margin:16px 0 0;font-size:12px">By continuing you agree to the yarn over the CB. Prototype — no data leaves this device.</p>
+          <div class="field" style="margin-bottom:14px"><label>Email</label><input class="input" id="em" type="email" placeholder="you@example.com"></div>
+          <button class="btn btn-ghost btn-block" id="emailgo">${icon('mail')} Email me a magic link</button>
+          <p class="meta" style="text-align:center;margin:18px 0 0;font-size:12px">By continuing you agree to keep it on the tracks. We never post on your behalf.</p>
         </div>
       </div>
     </div>`,

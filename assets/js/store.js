@@ -10,6 +10,7 @@ window.Store = (function () {
     alerts: [],                 // [{ id, partId, target, current, createdAt, triggered }]
     savedParts: [],             // [partId]
     savedTracks: [],            // [trackId]
+    suggestions: [],            // community-submitted tracks (track shape + status)
     location: null,             // { lat, lng, label, source }
     onboarded: false
   };
@@ -86,6 +87,20 @@ window.Store = (function () {
     a.current = a.target; a.triggered = true; a.triggeredAt = Date.now(); save();
   }
 
+  // ---- community route suggestions --------------------------------------
+  function addSuggestion(t) {
+    const s = { ...t, id: 's_' + uid(), status: 'pending', community: true, createdAt: Date.now() };
+    state.suggestions.push(s);
+    save(); fire('suggestionAdded', s); return s;
+  }
+  function removeSuggestion(id) {
+    const s = state.suggestions.find(x => x.id === id);
+    state.suggestions = state.suggestions.filter(x => x.id !== id);
+    save(); fire('suggestionRemoved', id, s);
+  }
+  function suggestions() { return state.suggestions || []; }
+  function suggestionById(id) { return (state.suggestions || []).find(s => s.id === id) || null; }
+
   // ---- location ---------------------------------------------------------
   function setLocation(loc) { state.location = loc; save(); }
   function location() { return state.location; }
@@ -99,6 +114,7 @@ window.Store = (function () {
     addRig, removeRig, setActiveRig, activeRig, fits,
     toggleSavedPart, toggleSavedTrack,
     addAlert, removeAlert, alertFor, simulateDrop,
+    addSuggestion, removeSuggestion, suggestions, suggestionById,
     setLocation, location, setOnboarded
   };
 })();
