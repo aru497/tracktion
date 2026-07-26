@@ -97,16 +97,26 @@ window.App = (function () {
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
           maxZoom: 19 })
       ],
-      dark: [L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' })]
+      dark: [darkLayer()]
     };
+  }
+  // OpenFreeMap dark (vector via MapLibre) with a CARTO raster fallback if the CDN/WebGL is unavailable
+  function darkLayer() {
+    if (window.L && L.maplibreGL && window.maplibregl) {
+      try {
+        return L.maplibreGL({ style: 'https://tiles.openfreemap.org/styles/dark',
+          attribution: '&copy; OpenFreeMap &copy; OpenMapTiles' });
+      } catch (e) { /* fall through */ }
+    }
+    return L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' });
   }
   let baseGroup = [], curBase = 'terrain';
   function setBase(name) {
     if (!mapObj) return;
     baseGroup.forEach(l => mapObj.removeLayer(l));
     baseGroup = (baseLayers()[name] || baseLayers().terrain);
-    baseGroup.forEach(l => l.addTo(mapObj).bringToBack());
+    baseGroup.forEach(l => { l.addTo(mapObj); if (l.bringToBack) l.bringToBack(); });
     curBase = name;
     document.body.classList.toggle('map-dark', name !== 'terrain');
   }
