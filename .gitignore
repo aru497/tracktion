@@ -16,3 +16,6 @@ data/parts.crawled.json
 .vercel
 supabase/.temp
 supabase/.branches
+
+# generated marketing media (large)
+marketing/*.mp4

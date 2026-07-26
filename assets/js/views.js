@@ -553,14 +553,18 @@ window.Views = (function () {
   function auth() {
     return { html: `<div class="auth">
       <div class="auth-brandside">
-        <div class="topo"></div>
-        <div style="position:relative" class="row"><span style="width:34px;height:34px">${logoSVG()}</span><b class="wordmark" style="font-size:23px;color:#F7F5F1"><span style="color:#C9855F">4WD</span>Scout</b></div>
-        <div style="position:relative">
+        <video class="auth-video" autoplay muted loop playsinline poster="assets/img/logo-512.png">
+          <source src="https://d8j0ntlcm91z4.cloudfront.net/user_3GUt22WNlgn1g3XxIzwf3DVxKos/hf_20260726_140943_8540b07c-247b-41e7-8c58-f0e7fedd6bd5.mp4" type="video/mp4">
+        </video>
+        <div class="auth-video-scrim"></div>
+        <div class="topo" style="z-index:1"></div>
+        <div style="position:relative;z-index:2" class="row"><span style="width:34px;height:34px">${logoSVG()}</span><b class="wordmark" style="font-size:23px;color:#F7F5F1"><span style="color:#C9855F">4WD</span>Scout</b></div>
+        <div style="position:relative;z-index:2">
           <div class="eyebrow" style="color:#C9855F">For people who air down</div>
           <h1 class="display" style="font-size:42px;line-height:1.05;margin:14px 0;max-width:14ch">Know it fits. Find the track.</h1>
           <p style="color:#C4BEB2;max-width:34ch;font-size:15px">Compare 4WD parts across every Aussie retailer by your exact rig — then go wheel the best tracks near you.</p>
         </div>
-        <div class="stat-strip" style="position:relative">
+        <div class="stat-strip" style="position:relative;z-index:2">
           <div><div class="n">14</div><span class="meta" style="color:#8C877C">retailers compared</span></div>
           <div><div class="n">17</div><span class="meta" style="color:#8C877C">tracks mapped</span></div>
           <div><div class="n">$0</div><span class="meta" style="color:#8C877C">to use, always</span></div>

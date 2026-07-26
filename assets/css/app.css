@@ -318,6 +318,9 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.5; }
   background-image:
     repeating-radial-gradient(circle at 35% 30%, transparent 0 44px, rgba(255,255,255,.05) 44px 45px),
     repeating-radial-gradient(circle at 80% 78%, transparent 0 54px, rgba(180,70,14,.18) 54px 56px); }
+.auth-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; opacity: .5; }
+.auth-video-scrim { position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(180deg, rgba(22,20,15,.55) 0%, rgba(22,20,15,.3) 42%, rgba(22,20,15,.9) 100%); }
 .auth-formside { display: grid; place-items: center; padding: 40px 28px; background: var(--bone); }
 .auth-card { width: 100%; max-width: 380px; }
 .auth-social { display: flex; flex-direction: column; gap: 10px; }
