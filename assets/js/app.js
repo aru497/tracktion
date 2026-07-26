@@ -1,0 +1,227 @@
+/* Tracktion — router, chrome, map, bootstrap */
+window.App = (function () {
+  const { $, $$, el, icon } = UI;
+  const DB = window.DB;
+  let mapObj = null, markers = [], curDiff = 'all';
+
+  const TABS = [
+    { route: '/home',   label: 'Discover', ic: 'compass' },
+    { route: '/parts',  label: 'Parts',    ic: 'parts' },
+    { route: '/tracks', label: 'Tracks',   ic: 'map' },
+    { route: '/garage', label: 'Garage',   ic: 'garage' }
+  ];
+
+  function routeParts() {
+    const h = (location.hash || '#/home').replace(/^#/, '');
+    return h.split('/').filter(Boolean); // ['part','maxtrax-mkii']
+  }
+
+  function currentTab() {
+    const p = routeParts()[0] || 'home';
+    const map = { home: '/home', parts: '/parts', part: '/parts', tracks: '/tracks', track: '/tracks', garage: '/garage' };
+    return map[p] || '/home';
+  }
+
+  // ---- chrome (top + bottom bars) --------------------------------------
+  function chrome() {
+    const s = Store.get(), loc = Store.location();
+    const initials = s.user ? s.user.name.split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase() : 'ME';
+    return `
+    <header class="topbar"><div class="wrap">
+      <a class="brand" href="#/home"><span class="logo">${Views.logoSVG()}</span><b>Tracktion</b></a>
+      <nav class="desknav" id="desknav">
+        ${TABS.map(t => `<a href="#${t.route}" data-r="${t.route}">${t.label}</a>`).join('')}
+      </nav>
+      <button class="loc-pill" id="locpill">${icon('pin')}<span id="loclabel">${loc ? UI.esc(loc.label) : 'Set location'}</span></button>
+      <a class="avatar-btn" href="#/garage" aria-label="Garage">${initials}</a>
+    </div></header>
+    <main id="main" class="app"></main>
+    <nav class="tabbar">
+      ${TABS.map(t => `<button class="tab" data-r="${t.route}">${icon(t.ic)}<span>${t.label}</span></button>`).join('')}
+    </nav>`;
+  }
+
+  function refreshChrome() {
+    const loc = Store.location();
+    const ll = $('#loclabel'); if (ll && loc) ll.textContent = loc.label;
+    const tab = currentTab();
+    $$('.tabbar .tab').forEach(b => b.classList.toggle('active', b.dataset.r === tab));
+    $$('#desknav a').forEach(a => a.classList.toggle('active', a.dataset.r === tab));
+  }
+
+  // ---- render a view ----------------------------------------------------
+  function render() {
+    if (!Store.get().user) return mountAuth();
+    const [p, arg] = routeParts();
+    let v;
+    switch (p) {
+      case 'parts':  v = Views.parts(arg); break;
+      case 'part':   v = Views.part(arg); break;
+      case 'tracks': v = Views.tracks(); break;
+      case 'track':  v = Views.track(arg); break;
+      case 'garage': v = Views.garage(); break;
+      case 'home':
+      default:       v = Views.home(); break;
+    }
+    const main = $('#main');
+    main.innerHTML = v.html;
+    window.scrollTo({ top: 0 });
+    refreshChrome();
+    if (v.map) initMap();
+    v.after && v.after(main);
+    UI.reveal(main);
+  }
+
+  function mountAuth() {
+    document.body.innerHTML = '<div id="root"></div>';
+    const root = $('#root');
+    const v = Views.auth();
+    root.innerHTML = v.html;
+    v.after && v.after(root);
+  }
+
+  function nav(route) { if (location.hash === '#' + route) render(); else location.hash = '#' + route; }
+
+  // ---- map --------------------------------------------------------------
+  function pinIcon(diff) {
+    return L.divIcon({ className: '', html: `<div class="pin d-${diff}"></div>`, iconSize: [26, 26], iconAnchor: [13, 24] });
+  }
+  function initMap() {
+    const loc = Store.location() || { lat: -33.87, lng: 151.21 };
+    mapObj = L.map('map', { zoomControl: false, attributionControl: true }).setView([loc.lat, loc.lng], 6);
+    L.control.zoom({ position: 'bottomright' }).addTo(mapObj);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+    }).addTo(mapObj);
+    if (Store.location()) {
+      L.marker([loc.lat, loc.lng], { icon: L.divIcon({ className: '', html: '<div class="pin me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }) })
+        .addTo(mapObj).bindTooltip('You');
+    }
+    drawMarkers();
+    // filter chips
+    $$('#mapfilters .chip').forEach(c => c.addEventListener('click', () => {
+      curDiff = c.dataset.diff;
+      $$('#mapfilters .chip').forEach(x => x.classList.toggle('on', x === c));
+      drawMarkers();
+    }));
+    setTimeout(() => mapObj.invalidateSize(), 60);
+  }
+  function drawMarkers() {
+    markers.forEach(m => mapObj.removeLayer(m)); markers = [];
+    const loc = Store.location();
+    const list = DB.tracks
+      .filter(t => curDiff === 'all' || t.difficulty === curDiff)
+      .map(t => ({ t, d: loc ? distanceKm(loc, t) : null }))
+      .sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9));
+    list.forEach(({ t }) => {
+      const m = L.marker([t.lat, t.lng], { icon: pinIcon(t.difficulty) }).addTo(mapObj);
+      m.on('click', () => nav('/track/' + t.id));
+      m.bindTooltip(t.name, { direction: 'top', offset: [0, -20] });
+      markers.push(m);
+    });
+    // panel list
+    const lst = $('#trklist');
+    if (lst) {
+      lst.innerHTML = list.map(({ t, d }) => `<a class="track-mini" href="#/track/${t.id}">
+        <div class="track-ico d-${t.difficulty}" style="background:var(--${t.difficulty}-wash);color:var(--${t.difficulty})">${icon(UI.typeIcon[t.type])}</div>
+        <div class="grow"><div class="spread"><b style="font-size:14.5px">${UI.esc(t.name)}</b>${d!=null?`<span class="meta">${d} km</span>`:''}</div>
+        <div class="meta" style="font-size:12px">${UI.esc(t.region)}, ${t.state}</div>
+        <div class="row" style="gap:6px;margin-top:5px"><span class="tag d-${t.difficulty}" style="font-size:9px"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span><span class="tag" style="font-size:9px">${t.lengthKm}km · ${t.hours}h</span></div></div>
+      </a>`).join('');
+      $('#trkcount').textContent = `${list.length} track${list.length!==1?'s':''}`;
+      const nr = $('#trknear'); if (nr && loc) nr.textContent = `nearest ${list[0]?.d ?? '–'} km`;
+    }
+  }
+
+  // ---- location ---------------------------------------------------------
+  function detectLocation(interactive) {
+    if (!navigator.geolocation) { if (interactive) UI.toast('Geolocation not available', false); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => { Store.setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, label: 'Near you', source: 'gps' });
+        refreshChrome(); if (mapObj) { mapObj.setView([pos.coords.latitude, pos.coords.longitude], 7); render(); }
+        if (interactive) UI.toast('Location updated'); },
+      () => { if (!Store.location()) Store.setLocation({ lat: -33.87, lng: 151.21, label: 'Sydney, NSW', source: 'default' });
+        refreshChrome(); if (interactive) UI.toast('Using Sydney as default', false); },
+      { timeout: 8000 }
+    );
+  }
+  function openLocSheet() {
+    const cities = [
+      ['Sydney, NSW', -33.87, 151.21], ['Newcastle, NSW', -32.93, 151.78], ['Brisbane, QLD', -27.47, 153.03],
+      ['Melbourne, VIC', -37.81, 144.96], ['Adelaide, SA', -34.93, 138.60], ['Perth, WA', -31.95, 115.86],
+      ['Cairns, QLD', -16.92, 145.77]
+    ];
+    const sh = UI.sheet(`<h3 class="display" style="font-size:20px">Your location</h3>
+      <p class="muted" style="margin:6px 0 16px">We use it to sort tracks by distance and centre the map.</p>
+      <button class="btn btn-clay btn-block" id="usegps" style="margin-bottom:14px">${icon('pin')} Use my current location</button>
+      <div class="divider">or pick a city</div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        ${cities.map(c => `<button class="btn btn-ghost" data-lat="${c[1]}" data-lng="${c[2]}" data-l="${c[0]}">${c[0]}</button>`).join('')}
+      </div>`);
+    $('#usegps', sh.el).addEventListener('click', () => { sh.close(); detectLocation(true); });
+    $$('[data-lat]', sh.el).forEach(b => b.addEventListener('click', () => {
+      Store.setLocation({ lat: +b.dataset.lat, lng: +b.dataset.lng, label: b.dataset.l, source: 'city' });
+      sh.close(); refreshChrome(); render();
+    }));
+  }
+
+  // ---- bootstrap --------------------------------------------------------
+  function mountApp() {
+    document.body.innerHTML = chrome();
+    $$('.tabbar .tab').forEach(b => b.addEventListener('click', () => nav(b.dataset.r)));
+    $('#locpill').addEventListener('click', openLocSheet);
+    render();
+    if (!Store.location()) detectLocation(false);
+  }
+
+  let lastUid = null;
+  async function onAuthChanged(user) {
+    if (user) {
+      if (user.id === lastUid && document.getElementById('main')) return;
+      lastUid = user.id;
+      try {
+        const data = await Backend.fetchState(user.id);
+        Store.hydrate(data);
+        Store.setAdapter(Backend.adapter(user.id));
+      } catch (e) { console.warn('hydrate failed, offline cache', e); }
+      mountApp();
+    } else {
+      lastUid = null;
+      Store.setAdapter(null);
+      Store.reset();
+      mountAuth();
+    }
+  }
+
+  // Called by the backend adapter after a mutation to refresh from the server.
+  async function resync() {
+    const uid = Backend.uid && Backend.uid(); if (!uid) return;
+    try {
+      const data = await Backend.fetchState(uid);
+      Store.hydrate(data);
+      if (document.getElementById('main')) { render(); } else { mountApp(); }
+    } catch (e) { console.warn('resync', e); }
+  }
+
+  async function signOut() {
+    if (Backend.isOn()) { await Backend.signOut(); }   // onAuth fires -> mountAuth
+    else { Store.logout(); mountAuth(); }
+  }
+
+  async function boot() {
+    if (Backend.init()) {
+      Backend.onAuth((user) => onAuthChanged(user));
+      const user = await Backend.currentUser();
+      await onAuthChanged(user);
+      return;
+    }
+    // offline path (localStorage prototype)
+    if (!Store.get().user) return mountAuth();
+    mountApp();
+  }
+
+  window.addEventListener('hashchange', () => { if (document.getElementById('main')) render(); });
+  document.addEventListener('DOMContentLoaded', boot);
+
+  return { nav, boot, render, refreshChrome, detectLocation, resync, signOut };
+})();
