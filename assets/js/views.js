@@ -721,7 +721,11 @@ window.Views = (function () {
         });
         Store.setOnboarded();
         toast("You're set — tracks matched to you");
-        location.hash = '#/home'; App.boot();
+        const obScrim = document.getElementById('ob-scrim');
+        if (obScrim) obScrim.remove();
+        root.remove();
+        location.hash = '#/home';
+        App.render();
       });
     }};
   }

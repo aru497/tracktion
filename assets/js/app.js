@@ -84,12 +84,29 @@ window.App = (function () {
   }
 
   function mountOnboard() {
-    document.body.innerHTML = '<div id="root" class="app" style="padding-bottom:0"></div>';
-    const root = $('#root');
+    // Ensure the main app shell exists in the background
+    if (!document.getElementById('main')) {
+      document.body.innerHTML = chrome();
+      $$('.tabbar .tab').forEach(b => b.addEventListener('click', () => nav(b.dataset.r)));
+      $('#locpill').addEventListener('click', openLocSheet);
+    }
+    
+    // Render the home view in the background so it's not empty
+    const main = $('#main');
+    const homeView = Views.home();
+    main.innerHTML = homeView.html;
+    if (homeView.map) initMap();
+    homeView.after && homeView.after(main);
+
+    // Create a styled popup modal over the app
+    const scrim = UI.el('<div class="scrim show" id="ob-scrim" style="z-index:9999; background:rgba(28,26,22,.8); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);"></div>');
+    const modal = UI.el('<div id="root" class="sheet show" style="z-index:10000; top:50%; left:50%; transform:translate(-50%,-50%); bottom:auto; border-radius:24px; padding:32px 24px; width:92%; max-width:480px; box-shadow:0 20px 40px rgba(0,0,0,.3); max-height:85vh;"></div>');
+    
     const v = Views.onboard();
-    root.innerHTML = v.html;
-    v.after && v.after(root);
-    UI.reveal(root);
+    modal.innerHTML = v.html;
+    document.body.append(scrim, modal);
+    v.after && v.after(modal);
+    UI.reveal(modal);
   }
 
   function nav(route) { if (location.hash === '#' + route) render(); else location.hash = '#' + route; }
