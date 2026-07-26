@@ -17,7 +17,7 @@
  * direct product URL). Prices come back in AUD.
  * -----------------------------------------------------------------------
  */
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -37,10 +37,15 @@ function loadWatchlist() {
   return win.DB.parts.map(p => ({
     id: p.id,
     name: p.name,
-    sources: p.offers.map(o => ({ retailer: o.retailer, url: o.url }))
+    sources: p.offers.map(o => ({ retailer: o.retailer, url: o.url, seedPrice: o.price }))
   }));
 }
 const WATCHLIST = loadWatchlist();
+
+// Sanity guard: many seed URLs are brand/landing pages, where extraction can
+// grab the WRONG product's price. Only accept a crawled price within ±60% of
+// the last known price; otherwise mark it suspect and keep the old price.
+const sane = (crawled, seed) => !seed || (crawled >= seed * 0.4 && crawled <= seed * 1.6);
 
 const PRICE_SCHEMA = {
   type: 'object',
@@ -79,10 +84,12 @@ async function run() {
     for (const src of p.sources) {
       try {
         const j = await scrapePrice(src.url);
-        if (j?.price) {
+        if (j?.price && sane(j.price, src.seedPrice)) {
           offers.push({ retailer: src.retailer, price: j.price, club: j.memberPrice ?? null,
             stock: j.inStock === false ? 'out' : 'in', url: src.url });
           console.log(`  ✓ ${p.id} @ ${src.retailer}: $${j.price}${j.memberPrice ? ` (member $${j.memberPrice})` : ''}`);
+        } else if (j?.price) {
+          console.warn(`  ~ ${p.id} @ ${src.retailer}: $${j.price} rejected (seed $${src.seedPrice} — likely wrong product on a landing page)`);
         } else {
           console.warn(`  – ${p.id} @ ${src.retailer}: no price found`);
         }
@@ -92,7 +99,9 @@ async function run() {
     }
     out.push({ id: p.id, name: p.name, offers, crawledAt: new Date().toISOString() });
   }
-  const file = join(__dir, '..', 'data', 'parts.crawled.json');
+  const dir = join(__dir, '..', 'data');
+  await mkdir(dir, { recursive: true });
+  const file = join(dir, 'parts.crawled.json');
   await writeFile(file, JSON.stringify(out, null, 2));
   console.log(`\nWrote ${out.length} products → ${file}`);
 
