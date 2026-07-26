@@ -226,7 +226,10 @@ window.App = (function () {
   let lastUid = null;
   async function onAuthChanged(user) {
     if (user) {
-      if (user.id === lastUid && document.getElementById('main')) return;
+      // Same user + something already on screen (app OR onboarding wizard):
+      // ignore repeat auth events (token refresh / tab focus) — remounting
+      // would kick an in-progress wizard back to step 1.
+      if (user.id === lastUid && (document.getElementById('main') || document.getElementById('root'))) return;
       lastUid = user.id;
       try {
         const data = await Backend.fetchState(user.id);
@@ -247,6 +250,9 @@ window.App = (function () {
     const uid = Backend.uid && Backend.uid(); if (!uid) return;
     try {
       const data = await Backend.fetchState(uid);
+      // Mid-onboarding: absorb the fresh data quietly but do NOT re-render —
+      // a remount would throw the user back to step 1 of the wizard.
+      if (!Store.get().onboarded) { delete data.onboarded; delete data.prefs; Store.hydrate(data); return; }
       Store.hydrate(data);
       if (document.getElementById('main')) { render(); } else { mountApp(); }
     } catch (e) { console.warn('resync', e); }
