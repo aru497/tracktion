@@ -6,10 +6,10 @@ window.App = (function () {
 
   const TABS = [
     { route: '/community', label: 'Community', ic: 'user' },
+    { route: '/scouts',    label: 'Scouts',    ic: 'route' },
     { route: '/home',      label: 'Discover',  ic: 'compass' },
     { route: '/parts',     label: 'Parts',     ic: 'parts' },
-    { route: '/tracks',    label: 'Tracks',    ic: 'map' },
-    { route: '/garage',    label: 'Garage',    ic: 'garage' }
+    { route: '/tracks',    label: 'Tracks',    ic: 'map' }
   ];
 
   function routeParts() {
@@ -19,8 +19,8 @@ window.App = (function () {
 
   function currentTab() {
     const p = routeParts()[0] || 'community';
-    const map = { home: '/home', parts: '/parts', part: '/parts', tracks: '/tracks', track: '/tracks', community: '/community', garage: '/garage' };
-    return map[p] || '/community';
+    const map = { home: '/home', parts: '/parts', part: '/parts', tracks: '/tracks', track: '/tracks', community: '/community', scouts: '/scouts' };
+    return map[p] || null;   // garage lives behind the avatar, no tab highlight
   }
 
   // ---- chrome (top + bottom bars) --------------------------------------
@@ -34,7 +34,7 @@ window.App = (function () {
         ${TABS.map(t => `<a href="#${t.route}" data-r="${t.route}">${t.label}</a>`).join('')}
       </nav>
       <button class="loc-pill" id="locpill">${icon('pin')}<span id="loclabel">${loc ? UI.esc(loc.label) : 'Set location'}</span></button>
-      <a class="avatar-btn" href="#/garage" aria-label="Garage">${initials}</a>
+      <a class="avatar-btn" href="#/garage" aria-label="Garage">${s.user && s.user.avatar ? `<img src="${UI.esc(s.user.avatar)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:999px;object-fit:cover">` : initials}</a>
     </div></header>
     <main id="main" class="app"></main>
     <nav class="tabbar">
@@ -62,8 +62,10 @@ window.App = (function () {
       case 'tracks':    v = Views.tracks(); break;
       case 'track':     v = Views.track(arg); break;
       case 'home':      v = Views.home(); break;
+      case 'garage':    v = Views.garage(); break;
+      case 'scouts':    v = Views.community('scouts'); break;
       case 'community':
-      default:          v = Views.community(arg); break;
+      default:          v = Views.community(); break;
     }
     const main = $('#main');
     main.innerHTML = v.html;
@@ -118,8 +120,6 @@ window.App = (function () {
   // base map styles — terrain (topo, great for 4WD), satellite, dark (Strava-ish)
   function baseLayers() {
     return {
-      terrain: [L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        subdomains: 'abc', maxZoom: 17, attribution: '&copy; OpenTopoMap (CC-BY-SA)' })],
       satellite: [
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
           maxZoom: 19, attribution: '&copy; Esri, Maxar, Earthstar Geographics' }),
@@ -140,20 +140,21 @@ window.App = (function () {
     return L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' });
   }
-  let baseGroup = [], curBase = 'terrain';
+  let baseGroup = [], curBase = 'satellite';   // satellite is the default; terrain style retired
   function setBase(name) {
     if (!mapObj) return;
     baseGroup.forEach(l => mapObj.removeLayer(l));
-    baseGroup = (baseLayers()[name] || baseLayers().terrain);
+    baseGroup = (baseLayers()[name] || baseLayers().satellite);
     baseGroup.forEach(l => { l.addTo(mapObj); if (l.bringToBack) l.bringToBack(); });
     curBase = name;
-    document.body.classList.toggle('map-dark', name !== 'terrain');
+    document.body.classList.toggle('map-dark', name === 'dark');   // satellite keeps the light panel
   }
   function initMap() {
     const loc = Store.location() || { lat: -33.87, lng: 151.21 };
     mapObj = L.map('map', { zoomControl: false, attributionControl: true }).setView([loc.lat, loc.lng], 6);
     L.control.zoom({ position: 'bottomright' }).addTo(mapObj);
     setBase(curBase);
+    $$('#mapstyle button').forEach(x => x.classList.toggle('on', x.dataset.base === curBase));
     $$('#mapstyle button').forEach(b => b.addEventListener('click', () => {
       $$('#mapstyle button').forEach(x => x.classList.toggle('on', x === b));
       setBase(b.dataset.base);

@@ -32,7 +32,7 @@ window.Backend = (function () {
   // ---- read: hydrate Store from the user's rows -------------------------
   async function fetchState(uid) {
     curUid = uid;
-    const [g, a, sp, st, sug, prof, posts, likes, pcomments, scouts, members, reqs] = await Promise.all([
+    const [g, a, sp, st, sug, prof, posts, likes, pcomments, scouts, members, reqs, guests, ppl, authu] = await Promise.all([
       sb.from('garage_vehicles').select('*').order('created_at'),
       sb.from('price_alerts').select('*'),
       sb.from('saved_parts').select('part_id'),
@@ -44,12 +44,22 @@ window.Backend = (function () {
       sb.from('post_comments').select('post_id,author,body,created_at').order('created_at'),
       sb.from('scouts').select('*').gte('date', new Date(Date.now() - 86400000).toISOString().slice(0, 10)).order('date'),
       sb.from('scout_members').select('scout_id,member_name'),
-      sb.from('scout_requests').select('scout_id,member_name')
+      sb.from('scout_requests').select('scout_id,member_name'),
+      sb.from('scout_guests').select('scout_id,member_name'),
+      sb.from('public_profiles').select('name,avatar_url'),
+      sb.auth.getUser()
     ]);
     const membersByScout = {};
     (members.data || []).forEach(m => (membersByScout[m.scout_id] = membersByScout[m.scout_id] || []).push(m.member_name));
     const requestsByScout = {};
     ((reqs && reqs.data) || []).forEach(m => (requestsByScout[m.scout_id] = requestsByScout[m.scout_id] || []).push(m.member_name));
+    const guestsByScout = {};
+    ((guests && guests.data) || []).forEach(m => (guestsByScout[m.scout_id] = guestsByScout[m.scout_id] || []).push(m.member_name));
+    // name -> avatar directory (Google DPs); own auth metadata wins for self
+    const people = {};
+    ((ppl && ppl.data) || []).forEach(r => { if (r.name && r.avatar_url) people[r.name] = r.avatar_url; });
+    const meta = authu?.data?.user?.user_metadata || {};
+    const myAvatar = meta.avatar_url || meta.picture || null;
     const likesByPost = {}, commentsByPost = {};
     (likes.data || []).forEach(l => (likesByPost[l.post_id] = likesByPost[l.post_id] || []).push(l.user_name));
     (pcomments.data || []).forEach(c => (commentsByPost[c.post_id] = commentsByPost[c.post_id] || []).push({ author: c.author, body: c.body, createdAt: Date.parse(c.created_at) }));
@@ -60,7 +70,8 @@ window.Backend = (function () {
     }));
     const activeRow = (g.data || []).find(r => r.is_active);
     return {
-      user: { name: prof.data?.name || 'Scout', email: prof.data?.email || '', provider: 'supabase' },
+      user: { name: prof.data?.name || 'Scout', email: prof.data?.email || '', provider: 'supabase', avatar: myAvatar },
+      people,
       garage,
       activeRigId: activeRow ? activeRow.id : (garage[0]?.id || null),
       alerts: (a.data || []).map(r => ({
@@ -88,6 +99,7 @@ window.Backend = (function () {
         id: r.id, title: r.title, trackId: r.track_id, date: r.date, capacity: r.capacity,
         notes: r.notes, host: r.host_name || 'Scout', hostIsMe: r.host_id === uid,
         inviteOnly: !!r.invite_only, requests: requestsByScout[r.id] || [],
+        guests: guestsByScout[r.id] || [],
         members: membersByScout[r.id] || [], createdAt: Date.parse(r.created_at)
       }))
     };
@@ -185,6 +197,12 @@ window.Backend = (function () {
         }).select('id').single();
         if (data) await sb.from('scout_members').insert({ scout_id: data.id, user_id: uid, member_name: sc.host });
         resync();
+      },
+      async scoutGuestAdded(id, name) {
+        await sb.from('scout_guests').insert({ scout_id: id, member_name: name, added_by: uid });
+      },
+      async scoutGuestRemoved(id, name) {
+        await sb.from('scout_guests').delete().eq('scout_id', id).eq('member_name', name);
       },
       async scoutRequested(id) {
         const me = (await sb.from('profiles').select('name').eq('id', uid).maybeSingle()).data?.name || 'Scout';

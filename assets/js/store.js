@@ -11,6 +11,7 @@ window.Store = (function () {
     savedParts: [],             // [partId]
     savedTracks: [],            // [trackId]
     suggestions: [],            // community-submitted tracks (track shape + status)
+    people: {},                 // display name -> avatar url (from public profiles)
     prefs: null,                // { types: [], maxDiff: 'medium', range: 300 }
     posts: [
       { id: 'p_fake1', type: 'warning', author: 'DmaxDan', trackId: 'yalwal', lat: -34.87, lng: 150.42, body: 'Huge tree down blocking the main track. Winch or chainsaw required to get through.', createdAt: Date.now() - 14400000, comments: [] },
@@ -159,21 +160,36 @@ window.Store = (function () {
   // ---- scouts (events / convoys) ------------------------------------------
   function addScout(sc) {
     const me = state.user ? state.user.name : 'Scout';
-    const scout = { id: 'sc_' + uid(), ...sc, host: me, members: [me], requests: [], createdAt: Date.now() };
+    const scout = { id: 'sc_' + uid(), ...sc, host: me, members: [me], guests: [], requests: [], createdAt: Date.now() };
     state.scouts.unshift(scout);
     save(); fire('scoutAdded', scout); return scout;
   }
+  const goingCount = (sc) => (sc.members ? sc.members.length : 0) + (sc.guests ? sc.guests.length : 0);
   function toggleScoutJoin(id) {
     const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
     const me = state.user ? state.user.name : 'Scout';
     const i = sc.members.indexOf(me);
-    if (i < 0) { 
+    if (i < 0) {
       if (sc.inviteOnly) return false; // Handled by requestJoinScout
-      if (sc.capacity && sc.members.length >= sc.capacity) return null; 
-      sc.members.push(me); 
+      if (sc.capacity && goingCount(sc) >= sc.capacity) return null;
+      sc.members.push(me);
     }
     else sc.members.splice(i, 1);
     save(); fire('scoutJoinSet', id, i < 0); return i < 0;
+  }
+  // host adds a mate directly (works for people not on the app yet)
+  function addScoutGuest(id, name) {
+    const sc = state.scouts.find(x => x.id === id); if (!sc || !name) return false;
+    if (!sc.guests) sc.guests = [];
+    if (sc.members.includes(name) || sc.guests.includes(name)) return false;
+    if (sc.capacity && goingCount(sc) >= sc.capacity) return null;
+    sc.guests.push(name);
+    save(); fire('scoutGuestAdded', id, name); return true;
+  }
+  function removeScoutGuest(id, name) {
+    const sc = state.scouts.find(x => x.id === id); if (!sc || !sc.guests) return;
+    sc.guests = sc.guests.filter(g => g !== name);
+    save(); fire('scoutGuestRemoved', id, name);
   }
   function requestJoinScout(id) {
     const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
@@ -187,7 +203,7 @@ window.Store = (function () {
   }
   function approveScoutRequest(id, reqUser) {
     const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
-    if (sc.capacity && sc.members.length >= sc.capacity) return false;
+    if (sc.capacity && goingCount(sc) >= sc.capacity) return false;
     if (sc.requests && sc.requests.includes(reqUser)) {
       sc.requests = sc.requests.filter(u => u !== reqUser);
       if (!sc.members.includes(reqUser)) sc.members.push(reqUser);
@@ -200,6 +216,13 @@ window.Store = (function () {
 
   // ---- location ---------------------------------------------------------
   function setLocation(loc) { state.location = loc; save(); }
+  // profile photo lookup (Google DPs etc.); falls back to your own auth avatar
+  function avatarOf(name) {
+    if (!name) return null;
+    if (state.people && state.people[name]) return state.people[name];
+    if (state.user && state.user.name === name && state.user.avatar) return state.user.avatar;
+    return null;
+  }
   function location() { return state.location; }
 
   function setOnboarded() { state.onboarded = true; save(); }
@@ -215,6 +238,7 @@ window.Store = (function () {
     setPrefs, prefs, matchScore,
     addPost, removePost, addComment, toggleLike, posts,
     addScout, toggleScoutJoin, requestJoinScout, approveScoutRequest, removeScout, scouts,
+    addScoutGuest, removeScoutGuest, avatarOf,
     setLocation, location, setOnboarded
   };
 })();

@@ -87,8 +87,12 @@ window.Views = (function () {
   const DIFFS = { easy: 1, medium: 1, hard: 1, extreme: 1 };
   const dsafe = (d) => DIFFS[d] ? d : 'medium';
   const gradeCell = (t) => ['Grade', `<span style="color:var(--${dsafe(t.difficulty)}-ink)">${esc(t.difficulty)}</span>`, '', true];
-  // avatar chip — per-name hue so the feed reads human, not template
+  // avatar chip — real profile photo (Google DP) when known, initials otherwise
   function avatar(name, size = 40) {
+    const url = Store.avatarOf ? Store.avatarOf(name) : null;
+    if (url && /^https:\/\//.test(url)) {
+      return `<img class="av" aria-hidden="true" src="${esc(url)}" alt="" referrerpolicy="no-referrer" loading="lazy" style="width:${size}px;height:${size}px;object-fit:cover">`;
+    }
     const hues = [['#FFF0E6', '#C83C00'], ['#E8F1EC', '#1B753A'], ['#EDEDF3', '#4A4A55'], ['#FEF3E9', '#B26313']];
     const i = (name || '?').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % hues.length;
     const init = (name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
@@ -416,8 +420,7 @@ window.Views = (function () {
           ${['all','easy','medium','hard','extreme'].map(d => `<button class="chip ${d==='all'?'on':''}" data-diff="${d}">${d==='all'?'All tracks':d[0].toUpperCase()+d.slice(1)}</button>`).join('')}
         </div>
         <div class="map-style seg" id="mapstyle">
-          <button data-base="terrain" class="on">Terrain</button>
-          <button data-base="satellite">Satellite</button>
+          <button data-base="satellite" class="on">Satellite</button>
           <button data-base="dark">Dark</button>
         </div>
         <div id="map"></div>
@@ -920,9 +923,9 @@ window.Views = (function () {
 
     const scoutsHtml = scouts.length ? scouts.map(({sc,t,d}) => {
       const joined = me && sc.members.includes(me);
-      const full = sc.capacity && sc.members.length >= sc.capacity;
+      const full = sc.capacity && (sc.members.length + (sc.guests ? sc.guests.length : 0)) >= sc.capacity;
       const dt = new Date(sc.date);
-      const avs = sc.members.slice(0, 4).map(mn => avatar(mn, 28)).join('');
+      const going = sc.members.length + (sc.guests ? sc.guests.length : 0);
       return `<article class="fcard reveal">
         <header class="fhead">
           <div class="dblock"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString('en-AU',{month:'short'})}</span></div>
@@ -930,7 +933,7 @@ window.Views = (function () {
             <b>${esc(sc.title)}</b>
             <span class="meta">${dt.toLocaleDateString('en-AU',{weekday:'long'})} · hosted by ${esc(sc.host)}${d!=null?` · ${d} km away`:''}</span>
           </div>
-          <span class="tag ${joined?'tag-fit':''}" style="flex:none">${sc.members.length}${sc.capacity?'/'+sc.capacity:''} in</span>
+          <span class="tag ${joined?'tag-fit':''}" style="flex:none">${going}${sc.capacity?'/'+sc.capacity:''} in</span>
         </header>
         ${t ? `<a class="fmap" href="#/track/${t.id}" aria-label="Open ${esc(t.name)}">
           ${miniMap(t, 640, 180)}
@@ -938,9 +941,21 @@ window.Views = (function () {
         </a>
         ${statRow([['Distance', `${t.lengthKm}`, 'km'], ['Time', `${t.hours}`, 'h'], gradeCell(t)])}` : ''}
         ${sc.notes?`<p class="fbody" style="margin-top:10px">${esc(sc.notes)}</p>`:''}
+        <div class="crew">
+          <div class="crew-row">
+            ${avatar(sc.host, 30)}
+            <b>${esc(sc.host)}</b>
+            <span class="tag tag-best">Organiser</span>
+            ${sc.inviteOnly ? `<span class="tag">${icon('shield')} Invite only</span>` : ''}
+          </div>
+          <span class="stat-l" style="margin:10px 0 6px">Going (${sc.members.length + (sc.guests?sc.guests.length:0)}${sc.capacity?` of ${sc.capacity}`:''})</span>
+          <div class="crew-list">
+            ${sc.members.map(mn => `<span class="crew-chip">${avatar(mn, 24)}${esc(mn)}${mn===sc.host?'':''}</span>`).join('')}
+            ${(sc.guests||[]).map(gn => `<span class="crew-chip crew-guest">${avatar(gn, 24)}${esc(gn)}${(sc.host===me||sc.hostIsMe)?`<button class="crew-x" data-delguest="${sc.id}" data-gn="${esc(gn)}" aria-label="Remove ${esc(gn)}">${icon('x')}</button>`:''}</span>`).join('')}
+            ${(sc.host===me||sc.hostIsMe)?`<button class="crew-chip crew-add" data-addguest="${sc.id}">${icon('plus')} Add a mate</button>`:''}
+          </div>
+        </div>
         <footer class="fsoc" style="gap:12px">
-          <span class="avstack">${avs}</span>
-          ${sc.members.length > 4 ? `<span class="meta" style="font-size:12px">+${sc.members.length - 4} more</span>` : ''}
           <span style="margin-left:auto" class="row">
           ${(sc.host===me || sc.hostIsMe)
             ? `<button class="btn btn-ghost btn-sm" data-delscout="${sc.id}">${icon('x')} Cancel</button>`
@@ -967,22 +982,25 @@ window.Views = (function () {
       </div>`;
 
     return { html: `<div class="view"><div class="wrap section">
-      <div class="spread">
-        <div><h1 class="display" style="font-size:26px">Community</h1>
-        <p class="muted" style="margin:4px 0 0">Warnings, track intel and convoys near ${loc?esc(loc.label):'you'}.</p></div>
+      <div class="spread" style="margin-bottom:18px">
+        <div><h1 class="display" style="font-size:26px">${seg==='scouts'?'Scouts':'Community'}</h1>
+        <p class="muted" style="margin:4px 0 0">${seg==='scouts'
+          ? `Convoy runs near ${loc?esc(loc.label):'you'} — join one or lead your own.`
+          : `Warnings and track intel near ${loc?esc(loc.label):'you'}.`}</p></div>
         <button class="btn btn-clay btn-sm" id="composebtn">${icon('plus')} ${seg==='scouts'?'New scout':'Post'}</button>
-      </div>
-      <div class="seg" style="margin:18px 0 18px">
-        <button class="${seg==='feed'?'on':''}" data-s="feed">${icon('compass')} Feed</button>
-        <button class="${seg==='scouts'?'on':''}" data-s="scouts">${icon('route')} Scouts</button>
       </div>
       <div class="feedcol">${seg==='feed'?feedHtml:scoutsHtml}</div>
       <div style="height:20px"></div>
     </div></div>`,
     after(root) {
-      $$('.seg [data-s]',root).forEach(b=>b.addEventListener('click',()=>App.nav('/community'+(b.dataset.s==='scouts'?'/scouts':''))));
+      // Feed and Scouts are separate tabs now
       $('#composebtn',root).addEventListener('click',()=> seg==='scouts'?openScoutSheet():openPostSheet());
       const es = $('#emptyscout',root); es && es.addEventListener('click', openScoutSheet);
+      // host: add / remove mates directly
+      $$('[data-addguest]',root).forEach(b=>b.addEventListener('click',()=>openAddMateSheet(b.dataset.addguest)));
+      $$('[data-delguest]',root).forEach(b=>b.addEventListener('click',()=>{
+        Store.removeScoutGuest(b.dataset.delguest, b.dataset.gn); App.render();
+      }));
       $$('[data-join]',root).forEach(b=>b.addEventListener('click',()=>{
         const r=Store.toggleScoutJoin(b.dataset.join);
         if(r===null) toast('That convoy is full',false); else toast(r?'You’re in — see you out there':'Left the convoy');
@@ -1093,8 +1111,28 @@ window.Views = (function () {
       if(!dv || isNaN(Date.parse(dv))){$('#sdate',sh.el).focus();return toast('Pick a date',false);}
       Store.addScout({ title, trackId:$('#strack',sh.el).value, date:dv,
         capacity:+($('#scap',sh.el).value||0)||null, notes:$('#snotes',sh.el).value.trim(), inviteOnly:!!($('#sinvite',sh.el)&&$('#sinvite',sh.el).checked) });
-      sh.close(); toast('Scout created — it’s live for the crew'); App.nav('/community/scouts');
+      sh.close(); toast('Scout created — it’s live for the crew'); App.nav('/scouts');
     });
+  }
+
+  function openAddMateSheet(scoutId) {
+    const sh = sheet(`
+      <h3 class="display" style="font-size:20px">Add a mate to the convoy</h3>
+      <p class="muted" style="margin:6px 0 16px">They don't need the app — you're vouching for their rig.</p>
+      <div class="field" style="margin-bottom:18px"><label>Name</label>
+        <input class="input" id="gname" placeholder="Davo (79 Series)" autocomplete="off"></div>
+      <button class="btn btn-clay btn-block" id="gadd">${icon('plus')} Add to crew</button>
+    `);
+    const go = () => {
+      const n = $('#gname', sh.el).value.trim();
+      if (!n) { $('#gname', sh.el).focus(); return toast('Give them a name', false); }
+      const r = Store.addScoutGuest(scoutId, n);
+      if (r === null) { toast('Convoy is full', false); return; }
+      if (r === false) { toast('Already on the list', false); return; }
+      sh.close(); toast(`${n} added to the crew`); App.render();
+    };
+    $('#gadd', sh.el).addEventListener('click', go);
+    $('#gname', sh.el).addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) go(); });
   }
 
   return { home, parts, part, tracks, track, garage, auth, onboard, community, trackById, difficultyOf: id => trackById[id]?.difficulty, logoSVG };
