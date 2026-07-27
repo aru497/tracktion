@@ -946,7 +946,7 @@ window.Views = (function () {
             ${avatar(sc.host, 30)}
             <b>${esc(sc.host)}</b>
             <span class="tag tag-best">Organiser</span>
-            ${sc.inviteOnly ? `<span class="tag">${icon('shield')} Invite only</span>` : ''}
+            <span class="tag">${icon('shield')} Approval to join</span>
           </div>
           <span class="stat-l" style="margin:10px 0 6px">Going (${sc.members.length + (sc.guests?sc.guests.length:0)}${sc.capacity?` of ${sc.capacity}`:''})</span>
           <div class="crew-list">
@@ -960,12 +960,12 @@ window.Views = (function () {
           ${(sc.host===me || sc.hostIsMe)
             ? `<button class="btn btn-ghost btn-sm" data-delscout="${sc.id}">${icon('x')} Cancel</button>`
             : (joined ? `<button class="btn btn-ghost btn-sm" data-join="${sc.id}">Leave</button>` :
-               (sc.inviteOnly ?
-                  (sc.requests && sc.requests.includes(me) ? `<button class="btn btn-ghost btn-sm" disabled>Requested</button>` : `<button class="btn btn-clay btn-sm" data-reqjoin="${sc.id}" ${(full)?'disabled':''}>${full?'Full':'Request to join'}</button>`)
-                  : `<button class="btn btn-clay btn-sm" data-join="${sc.id}" ${(full)?'disabled':''}>${full?'Full':'Join convoy'}</button>`))
+               (sc.requests && sc.requests.includes(me)
+                  ? `<button class="btn btn-ghost btn-sm" disabled>Requested</button>`
+                  : `<button class="btn btn-clay btn-sm" data-reqjoin="${sc.id}" ${(full)?'disabled':''}>${full?'Full':'Request to join'}</button>`))
           }</span>
         </footer>
-        ${(sc.host===me || sc.hostIsMe) && sc.inviteOnly && sc.requests && sc.requests.length ? `
+        ${(sc.host===me || sc.hostIsMe) && sc.requests && sc.requests.length ? `
           <div class="fcomments">
           <div style="font-size:13px;font-weight:600;margin-bottom:8px">Pending requests</div>
           ${sc.requests.map(ru => `<div class="spread" style="margin-bottom:4px"><span class="row" style="gap:8px">${avatar(ru,26)}<span class="meta">${esc(ru)}</span></span><button class="btn btn-ghost btn-sm" data-approve="${sc.id}" data-ru="${esc(ru)}">Approve</button></div>`).join('')}
@@ -1097,9 +1097,7 @@ window.Views = (function () {
         <div class="field"><label>Date</label><input class="input" id="sdate" type="date" value="${tomorrow}"></div>
         <div class="field"><label>Max rigs</label><select class="input" id="scap"><option value="">No limit</option>${[4,6,8,10,15].map(n=>`<option>${n}</option>`).join('')}</select></div>
       </div>
-      <div class="field" style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="sinvite" style="width:20px;height:20px"><label for="sinvite" style="margin:0;font-size:15px;color:var(--text)">Invite-only (requires approval)</label>
-      </div>
+      <p class="meta" style="margin:0 0 12px;font-size:12.5px">${icon('shield')} Everyone joins by request — you approve each rig, and you can add mates directly.</p>
       <div class="field" style="margin-bottom:18px"><label>Notes (optional)</label>
         <textarea class="input" id="snotes" rows="2" placeholder="Meet at the servo 7am. UHF 18. Bring boards + lunch."></textarea></div>
       <button class="btn btn-clay btn-block" id="screate">${icon('route')} Create scout</button>

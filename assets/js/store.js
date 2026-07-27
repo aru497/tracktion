@@ -169,13 +169,9 @@ window.Store = (function () {
     const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
     const me = state.user ? state.user.name : 'Scout';
     const i = sc.members.indexOf(me);
-    if (i < 0) {
-      if (sc.inviteOnly) return false; // Handled by requestJoinScout
-      if (sc.capacity && goingCount(sc) >= sc.capacity) return null;
-      sc.members.push(me);
-    }
-    else sc.members.splice(i, 1);
-    save(); fire('scoutJoinSet', id, i < 0); return i < 0;
+    if (i < 0) return false;   // joining is request+approval only; hosts add directly
+    sc.members.splice(i, 1);   // leaving is always allowed
+    save(); fire('scoutJoinSet', id, false); return false;
   }
   // host adds a mate directly (works for people not on the app yet)
   function addScoutGuest(id, name) {
