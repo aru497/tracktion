@@ -88,13 +88,9 @@ h1,h2,h3,h4 { margin: 0; letter-spacing: -0.01em; line-height: 1.12; font-weight
 
 /* ---------- Layout ---------- */
 .app { min-height: 100vh; padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); }
+/* Plain values only — Safari dropped fancier max()/env() variants of this rule,
+   which is exactly how the edge-hugging bug happened. Do not get clever here. */
 .wrap { max-width: var(--maxw); margin: 0 auto; padding-left: 22px; padding-right: 22px; }
-@supports (padding: max(0px)) {
-  .wrap {
-    padding-left: max(22px, env(safe-area-inset-left, 0px));
-    padding-right: max(22px, env(safe-area-inset-right, 0px));
-  }
-}
 .view { animation: viewin .5s cubic-bezier(.16,1,.3,1); }
 @keyframes viewin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .section { padding: 28px 0; }
@@ -404,7 +400,12 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.5; }
 @media (max-width: 779px) {
   .desknav { display: none !important; }
   .auth { grid-template-columns: 1fr; }
-  .auth-brandside { display: none; }
+  /* phones: brand film becomes a compact hero band above the form */
+  .auth-brandside { min-height: 34vh; min-height: 34dvh; padding: 22px; justify-content: flex-end; }
+  .auth-brandside .stat-strip { display: none; }
+  .auth-brandside h1 { font-size: 26px !important; margin: 10px 0 4px !important; }
+  .auth-brandside p { font-size: 13px !important; }
+  .auth-formside { padding: 26px 22px 34px; }
   .grid-bento { grid-template-columns: 1fr; }
 }
 .desknav { display: none; gap: 4px; align-items: center; }

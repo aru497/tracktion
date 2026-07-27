@@ -699,13 +699,13 @@ window.Views = (function () {
       </div>
       <div class="auth-formside">
         <div class="auth-card">
-          <img src="assets/img/wordmark.png?v=2" alt="4WDScout" style="height:38px;width:auto;margin-bottom:10px;display:block">
+          <img src="assets/img/wordmark.png?v=3" alt="4WDScout" style="height:38px;width:auto;margin-bottom:10px;display:block">
           <div class="hide"><span style="width:26px;height:26px">${logoSVG()}</span></div>
           <h2 class="display" style="font-size:26px;margin:14px 0 4px">Sign in to your garage</h2>
           <p class="muted" style="margin:0 0 20px">One tap with Google. Your rigs, alerts and saved tracks sync across every device.</p>
           <div class="auth-social">
             <button class="sso sso-google" data-p="Google">${UI.ICON.google} Continue with Google</button>
-            <button class="sso" data-p="Apple">${UI.ICON.apple} Continue with Apple</button>
+            ${(window.TRACKTION_CONFIG && window.TRACKTION_CONFIG.oauth && window.TRACKTION_CONFIG.oauth.apple) ? `<button class="sso" data-p="Apple">${UI.ICON.apple} Continue with Apple</button>` : ''}
           </div>
           <div class="divider">or use email instead</div>
           <div class="field" style="margin-bottom:10px"><label>Name</label><input class="input" id="nm" placeholder="Jordan"></div>
