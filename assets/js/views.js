@@ -11,6 +11,81 @@ window.Views = (function () {
   const getTrack = (id) => trackById[id] || Store.suggestionById(id);
   const allTracks = () => DB.tracks.concat(Store.suggestions());
 
+  // ==================== STRAVA-STYLE ROUTE WIDGETS ====================
+  // Deterministic mini-maps: every track gets a stable, credible-looking route
+  // polyline drawn as inline SVG (no tiles, no network, instant). Seeded from
+  // the track id; shaped by terrain type. NOTE: decorative preview geometry —
+  // real GPX comes later via community uploads.
+  function seeded(id) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return () => { h = Math.imul(h ^ (h >>> 15), 2246822519); h = Math.imul(h ^ (h >>> 13), 3266489917); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+  }
+  function routePts(t, w, h) {
+    const r = seeded(t.id), pad = Math.min(w, h) * 0.16;
+    const n = 9 + Math.floor(r() * 4);
+    const shape = { beach: { amp: .16, drift: .95 }, desert: { amp: .22, drift: .9 },
+      river: { amp: .34, drift: .8 }, forest: { amp: .3, drift: .55 }, mountain: { amp: .42, drift: .7 } }[t.type] || { amp: .3, drift: .7 };
+    const pts = []; let y = h * (0.35 + r() * 0.3), dy = 0;
+    for (let i = 0; i < n; i++) {
+      const x = pad + (w - 2 * pad) * (i / (n - 1));
+      dy = dy * shape.drift + (r() - 0.5) * h * shape.amp;
+      y = Math.max(pad, Math.min(h - pad, y + dy));
+      pts.push([x, y]);
+    }
+    return pts;
+  }
+  const toPath = (pts) => pts.map((p, i) => {
+    if (!i) return `M${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
+    const q = pts[i - 1], mx = ((q[0] + p[0]) / 2).toFixed(1), my = ((q[1] + p[1]) / 2).toFixed(1);
+    return `Q${q[0].toFixed(1)} ${q[1].toFixed(1)} ${mx} ${my}`;
+  }).join(' ');
+  // light sage map canvas + faint street grid + park blobs + orange route w/ white casing
+  function miniMap(t, w = 340, h = 150, opts = {}) {
+    const r = seeded(t.id + 'bg'), pts = routePts(t, w, h), d = toPath(pts);
+    const s = pts[0], e = pts[pts.length - 1];
+    let blobs = '';
+    for (let i = 0; i < 3; i++) {
+      blobs += `<ellipse cx="${(r() * w).toFixed(0)}" cy="${(r() * h).toFixed(0)}" rx="${(w * (0.12 + r() * 0.15)).toFixed(0)}" ry="${(h * (0.15 + r() * 0.2)).toFixed(0)}" fill="#E4EAE0" opacity="${(0.5 + r() * 0.4).toFixed(2)}"/>`;
+    }
+    let grid = '';
+    for (let x = 20; x < w; x += 34) grid += `<line x1="${x}" y1="0" x2="${x + 10}" y2="${h}" stroke="#FFFFFF" stroke-width="2" opacity=".55"/>`;
+    for (let y2 = 18; y2 < h; y2 += 30) grid += `<line x1="0" y1="${y2}" x2="${w}" y2="${y2 - 6}" stroke="#FFFFFF" stroke-width="2" opacity=".45"/>`;
+    return `<svg viewBox="0 0 ${w} ${h}" class="mmap${opts.cls ? ' ' + opts.cls : ''}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Route preview">
+      <rect width="${w}" height="${h}" fill="#EEF0EA"/>${blobs}${grid}
+      <path d="${d}" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${d}" fill="none" stroke="#FC4C02" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${s[0].toFixed(1)}" cy="${s[1].toFixed(1)}" r="5" fill="#FFFFFF"/><circle cx="${s[0].toFixed(1)}" cy="${s[1].toFixed(1)}" r="3" fill="#1B753A"/>
+      <circle cx="${e[0].toFixed(1)}" cy="${e[1].toFixed(1)}" r="5" fill="#FFFFFF"/><circle cx="${e[0].toFixed(1)}" cy="${e[1].toFixed(1)}" r="3" fill="#242428"/>
+    </svg>`;
+  }
+  // Strava-style elevation profile sparkline
+  function elevSpark(id, w = 320, h = 46) {
+    const r = seeded(id + 'elev'); const pts = []; let y = h * 0.6, dy = 0;
+    for (let i = 0; i <= 28; i++) {
+      dy = dy * 0.6 + (r() - 0.48) * h * 0.28;
+      y = Math.max(6, Math.min(h - 4, y + dy));
+      pts.push([(w * i / 28), y]);
+    }
+    const line = toPath(pts);
+    return `<svg viewBox="0 0 ${w} ${h}" class="espark" preserveAspectRatio="none" aria-hidden="true">
+      <path d="${line} L${w} ${h} L0 ${h} Z" fill="#FC4C02" opacity=".10"/>
+      <path d="${line}" fill="none" stroke="#FC4C02" stroke-width="2" stroke-linecap="round"/>
+    </svg>`;
+  }
+  // Strava stat band: LABEL over big tabular number, hairline dividers between
+  function statRow(items) {
+    return `<div class="statrow">` + items.map(([label, val, sub]) =>
+      `<div class="stat"><span class="stat-l">${label}</span><span class="stat-v">${val}${sub ? `<em>${sub}</em>` : ''}</span></div>`).join('') + `</div>`;
+  }
+  // avatar chip — per-name hue so the feed reads human, not template
+  function avatar(name, size = 40) {
+    const hues = [['#FFF0E6', '#C83C00'], ['#E8F1EC', '#1B753A'], ['#EDEDF3', '#4A4A55'], ['#FEF3E9', '#B26313']];
+    const i = (name || '?').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % hues.length;
+    const init = (name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
+    return `<span class="av" style="width:${size}px;height:${size}px;background:${hues[i][0]};color:${hues[i][1]};font-size:${Math.round(size * 0.36)}px">${init}</span>`;
+  }
+
   // effective (lowest) price for a part across its offers
   const bestOffer = (p) => p.offers.reduce((m, o) => (priceOf(o) < priceOf(m) ? o : m));
   const priceOf   = (o) => o.club ?? o.price;
@@ -135,15 +210,21 @@ window.Views = (function () {
       </div></div>` };
   }
 
+  // Strava Routes-list style: route thumbnail left, name + stat band right
   function trackRow(t, d, m) {
-    return `<a class="card card-hover reveal" href="#/track/${t.id}" style="display:flex;gap:0;overflow:hidden">
-      <div style="width:86px;flex:none;position:relative;overflow:hidden">
-        <img src="assets/img/terrain/${UI.typeIcon[t.type] ? t.type : 'forest'}.jpg" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></div>
-      <div class="card-pad" style="flex:1;padding:14px 16px">
-        <div class="spread"><b style="font-size:15px">${esc(t.name)}</b><span class="row" style="gap:6px">${m!=null?`<span class="tag tag-best">${m}% match</span>`:''}${d!=null?`<span class="tag">${d} km</span>`:''}</span></div>
-        <div class="meta" style="margin:2px 0 8px">${esc(t.region)}, ${t.state}</div>
-        <div class="row" style="gap:8px"><span class="tag d-${t.difficulty}"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span>
-        <span class="tag">${icon('ruler')} ${t.lengthKm} km</span><span class="tag">${icon('clock')} ${t.hours}h</span></div>
+    return `<a class="card card-hover reveal trk" href="#/track/${t.id}">
+      <div class="trk-thumb">${miniMap(t, 120, 120, { cls: 'sq' })}</div>
+      <div class="trk-body">
+        <div class="spread" style="align-items:flex-start">
+          <b class="trk-name">${esc(t.name)}</b>
+          ${m != null ? `<span class="tag tag-best">${m}%</span>` : (d != null ? `<span class="meta mono-num">${d} km</span>` : '')}
+        </div>
+        <div class="meta" style="font-size:12.5px">${esc(t.region)}, ${t.state} · <span style="color:var(--${t.difficulty});font-weight:600;text-transform:capitalize">${t.difficulty}</span></div>
+        ${statRow([
+          ['Distance', `${t.lengthKm}`, 'km'],
+          ['Time', `${t.hours}`, 'h'],
+          ...(d != null ? [['Away', `${d}`, 'km']] : [['Terrain', `<span style="text-transform:capitalize;font-size:15px">${t.type}</span>`, '']])
+        ])}
       </div>
     </a>`;
   }
@@ -420,7 +501,22 @@ window.Views = (function () {
             ${t.permit?`<span class="tag tag-best">Permit required</span>`:''}
             ${community?`<span class="tag" style="background:var(--olive-wash);color:var(--olive);border:0">${icon('user')} Community · pending review</span>`:''}
           </div>
-          <p class="muted" style="margin:16px 0 0">${esc(t.blurb)}</p>
+          ${statRow([
+            ['Distance', `${t.lengthKm}`, 'km'],
+            ['Est. time', `${t.hours}`, 'h'],
+            ['Grade', `<span style="color:var(--${t.difficulty});font-size:15px;text-transform:capitalize">${t.difficulty}</span>`, ''],
+            ...(d!=null?[['From you', `${d}`, 'km']]:[])
+          ])}
+          <p class="muted" style="margin:14px 0 0">${esc(t.blurb)}</p>
+        </div>
+      </div>
+
+      <div class="card reveal" style="margin-top:16px;overflow:hidden">
+        ${miniMap(t, 720, 240)}
+        <div class="card-pad" style="padding:14px 20px 16px">
+          <div class="spread" style="margin-bottom:6px"><span class="eyebrow" style="font-size:10px">Route profile</span><span class="meta mono-num" style="font-size:12px">${t.lengthKm} km</span></div>
+          ${elevSpark(t.id, 680, 52)}
+          <p class="meta" style="margin:8px 0 0;font-size:11.5px">Preview shape — community GPX uploads will replace this with the real line.</p>
         </div>
       </div>
 
@@ -770,51 +866,76 @@ window.Views = (function () {
     const feedHtml = posts.length ? posts.map(({p,d}) => {
       const T = POST_TYPES[p.type]||POST_TYPES.trip;
       const trk = p.trackId ? getTrack(p.trackId) : null;
-      return `<div class="card card-pad reveal" style="margin-bottom:12px">
-        <div class="spread">
-          <span class="tag" style="background:${T.wash};color:${T.ink};border:0">${icon(T.ic)} ${T.label}</span>
-          <span class="meta" style="font-size:12px">${ago(p.createdAt)}${d!=null?` · ${d} km away`:''}</span>
+      const likes = p.likes || [], liked = me && likes.includes(me);
+      const nc = (p.comments || []).length;
+      return `<article class="fcard reveal">
+        <header class="fhead">
+          ${avatar(p.author, 42)}
+          <div class="fhead-t">
+            <b>${esc(p.author)}</b>
+            <span class="meta">${ago(p.createdAt)}${p.vehicle?` · ${esc(p.vehicle)}`:''}${d!=null?` · ${d} km away`:(p.label?` · ${esc(p.label)}`:'')}</span>
+          </div>
+          <span class="ftype" style="background:${T.wash};color:${T.ink}">${icon(T.ic)} ${T.label}</span>
+        </header>
+        <p class="fbody">${esc(p.body)}</p>
+        ${trk ? `<a class="fmap" href="#/track/${trk.id}" aria-label="Open ${esc(trk.name)}">
+          ${miniMap(trk, 640, 210)}
+          <div class="fmap-cap"><div><b>${esc(trk.name)}</b><span class="meta"> · ${esc(trk.region)}, ${trk.state}</span></div>${icon('chev')}</div>
+        </a>
+        ${statRow([['Distance', `${trk.lengthKm}`, 'km'], ['Time', `${trk.hours}`, 'h'], ['Grade', `<span style="color:var(--${trk.difficulty});font-size:15px;text-transform:capitalize">${trk.difficulty}</span>`, '']])}` : ''}
+        <footer class="fsoc">
+          <button class="soc-btn ${liked?'on':''}" data-kudos="${p.id}" aria-pressed="${liked}">${icon(liked?'kudosF':'kudos')} <span class="mono-num">${likes.length || ''}</span></button>
+          <button class="soc-btn" data-cfocus="${p.id}">${icon('comment')} <span class="mono-num">${nc || ''}</span></button>
+          ${likes.length ? `<span class="meta" style="margin-left:auto;font-size:12px">${esc(likes.slice(0,2).join(', '))}${likes.length>2?` + ${likes.length-2} more`:''} gave kudos</span>` : ''}
+        </footer>
+        ${nc ? `<div class="fcomments">` + p.comments.map(c => `
+          <div class="fcomment">${avatar(c.author, 26)}<div><b>${esc(c.author)}</b> <span class="meta" style="font-size:11px">${ago(c.createdAt)}</span><p>${esc(c.body)}</p></div></div>`).join('') + `</div>` : ''}
+        <div class="fcompose">
+          ${avatar(me || 'You', 28)}
+          <input class="input" placeholder="Add a comment…" data-cid="${p.id}">
+          <button class="btn btn-clay btn-sm" data-csend="${p.id}">Post</button>
         </div>
-        <p style="margin:10px 0 8px;line-height:1.5">${esc(p.body)}</p>
-        <div class="row wrap-r" style="gap:8px; margin-bottom:8px">
-          ${trk?`<a class="tag" href="#/track/${trk.id}">${icon(UI.typeIcon[trk.type]||'map')} ${esc(trk.name)}</a>`:''}
-          ${p.label?`<span class="tag">${icon('pin')} ${esc(p.label)}</span>`:''}
-          <span class="tag">${icon('user')} ${esc(p.author)}${p.vehicle?` · ${esc(p.vehicle)}`:''}</span>
-        </div>
-        ${p.comments && p.comments.length ? `<div class="divider" style="margin:10px 0"></div>` + p.comments.map(c => `
-          <div style="font-size:13px;margin-bottom:6px"><b>${esc(c.author)}</b>: <span class="muted">${esc(c.body)}</span></div>
-        `).join('') : ''}
-        <div class="row" style="gap:8px;margin-top:10px">
-          <input class="input" style="flex:1;padding:6px 12px;font-size:13px" placeholder="Add a comment..." data-cid="${p.id}">
-          <button class="btn btn-ghost btn-sm" data-csend="${p.id}">Reply</button>
-        </div>
-      </div>`;
+      </article>`;
     }).join('') : `<div class="card empty">${icon('compass')}<div>Nothing posted near you yet. Seen a washout, closure or bog hole? Warn the next crew.</div></div>`;
 
     const scoutsHtml = scouts.length ? scouts.map(({sc,t,d}) => {
       const joined = me && sc.members.includes(me);
       const full = sc.capacity && sc.members.length >= sc.capacity;
-      return `<div class="card card-pad reveal" style="margin-bottom:12px">
-        <div class="spread"><b style="font-size:16px;letter-spacing:-.01em">${esc(sc.title)}</b>
-          <span class="tag ${joined?'tag-fit':''}">${sc.members.length}${sc.capacity?'/'+sc.capacity:''} going</span></div>
-        <div class="meta" style="margin:4px 0 10px">${new Date(sc.date).toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}${t?` · ${esc(t.name)}`:''}${d!=null?` · ${d} km away`:''} · hosted by ${esc(sc.host)}</div>
-        ${sc.notes?`<p class="muted" style="margin:0 0 12px;font-size:14px">${esc(sc.notes)}</p>`:''}
-        <div class="row" style="gap:8px">
-          ${t?`<a class="btn btn-ghost btn-sm" href="#/track/${t.id}">View track</a>`:''}
+      const dt = new Date(sc.date);
+      const avs = sc.members.slice(0, 4).map(mn => avatar(mn, 28)).join('');
+      return `<article class="fcard reveal">
+        <header class="fhead">
+          <div class="dblock" aria-hidden="true"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString('en-AU',{month:'short'})}</span></div>
+          <div class="fhead-t">
+            <b>${esc(sc.title)}</b>
+            <span class="meta">${dt.toLocaleDateString('en-AU',{weekday:'long'})} · hosted by ${esc(sc.host)}${d!=null?` · ${d} km away`:''}</span>
+          </div>
+          <span class="tag ${joined?'tag-fit':''}" style="flex:none">${sc.members.length}${sc.capacity?'/'+sc.capacity:''} in</span>
+        </header>
+        ${t ? `<a class="fmap" href="#/track/${t.id}" aria-label="Open ${esc(t.name)}">
+          ${miniMap(t, 640, 180)}
+          <div class="fmap-cap"><div><b>${esc(t.name)}</b><span class="meta"> · ${esc(t.region)}, ${t.state}</span></div>${icon('chev')}</div>
+        </a>
+        ${statRow([['Distance', `${t.lengthKm}`, 'km'], ['Time', `${t.hours}`, 'h'], ['Grade', `<span style="color:var(--${t.difficulty});font-size:15px;text-transform:capitalize">${t.difficulty}</span>`, '']])}` : ''}
+        ${sc.notes?`<p class="fbody" style="margin-top:10px">${esc(sc.notes)}</p>`:''}
+        <footer class="fsoc" style="gap:12px">
+          <span class="avstack">${avs}</span>
+          ${sc.members.length > 4 ? `<span class="meta" style="font-size:12px">+${sc.members.length - 4} more</span>` : ''}
+          <span style="margin-left:auto" class="row">
           ${(sc.host===me || sc.hostIsMe)
-            ? `<button class="btn btn-ghost btn-sm" data-delscout="${sc.id}">${icon('x')} Cancel scout</button>`
+            ? `<button class="btn btn-ghost btn-sm" data-delscout="${sc.id}">${icon('x')} Cancel</button>`
             : (joined ? `<button class="btn btn-ghost btn-sm" data-join="${sc.id}">Leave</button>` :
                (sc.inviteOnly ?
                   (sc.requests && sc.requests.includes(me) ? `<button class="btn btn-ghost btn-sm" disabled>Requested</button>` : `<button class="btn btn-clay btn-sm" data-reqjoin="${sc.id}" ${(full)?'disabled':''}>${full?'Full':'Request to join'}</button>`)
                   : `<button class="btn btn-clay btn-sm" data-join="${sc.id}" ${(full)?'disabled':''}>${full?'Full':'Join convoy'}</button>`))
-          }
-        </div>
+          }</span>
+        </footer>
         ${(sc.host===me || sc.hostIsMe) && sc.inviteOnly && sc.requests && sc.requests.length ? `
-          <div class="divider" style="margin:10px 0"></div>
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Pending requests:</div>
-          ${sc.requests.map(ru => `<div class="spread" style="margin-bottom:4px"><span class="meta">${esc(ru)}</span><button class="btn btn-ghost btn-sm" data-approve="${sc.id}" data-ru="${esc(ru)}">Approve</button></div>`).join('')}
-        ` : ''}
-      </div>`;
+          <div class="fcomments">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Pending requests</div>
+          ${sc.requests.map(ru => `<div class="spread" style="margin-bottom:4px"><span class="row" style="gap:8px">${avatar(ru,26)}<span class="meta">${esc(ru)}</span></span><button class="btn btn-ghost btn-sm" data-approve="${sc.id}" data-ru="${esc(ru)}">Approve</button></div>`).join('')}
+          </div>` : ''}
+      </article>`;
     }).join('') : `<div class="card empty">${icon('route')}<div>No scouts planned near you. Create one — solo trips are better as convoys.</div></div>`;
 
     return { html: `<div class="view"><div class="wrap section">
@@ -827,7 +948,7 @@ window.Views = (function () {
         <button class="${seg==='feed'?'on':''}" data-s="feed">${icon('compass')} Feed</button>
         <button class="${seg==='scouts'?'on':''}" data-s="scouts">${icon('route')} Scouts</button>
       </div>
-      ${seg==='feed'?feedHtml:scoutsHtml}
+      <div class="feedcol">${seg==='feed'?feedHtml:scoutsHtml}</div>
       <div style="height:20px"></div>
     </div></div>`,
     after(root) {
@@ -841,6 +962,24 @@ window.Views = (function () {
       $$('[data-csend]',root).forEach(b=>b.addEventListener('click',()=>{
         const inp = $(`input[data-cid="${b.dataset.csend}"]`, root);
         if (inp && inp.value.trim()) { Store.addComment(b.dataset.csend, inp.value.trim()); App.render(); }
+      }));
+      // enter-to-send in comment composers
+      $$('input[data-cid]',root).forEach(inp=>inp.addEventListener('keydown',(e)=>{
+        if (e.key==='Enter' && inp.value.trim()) { Store.addComment(inp.dataset.cid, inp.value.trim()); App.render(); }
+      }));
+      // kudos — optimistic flip, no full re-render (keeps scroll position)
+      $$('[data-kudos]',root).forEach(b=>b.addEventListener('click',()=>{
+        const on = Store.toggleLike(b.dataset.kudos);
+        if (on === null) return;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+        const p = Store.posts().find(x=>x.id===b.dataset.kudos);
+        const n = (p && p.likes) ? p.likes.length : 0;
+        b.innerHTML = `${icon(on?'kudosF':'kudos')} <span class="mono-num">${n || ''}</span>`;
+      }));
+      $$('[data-cfocus]',root).forEach(b=>b.addEventListener('click',()=>{
+        const inp = $(`input[data-cid="${b.dataset.cfocus}"]`, root);
+        if (inp) { inp.focus(); inp.scrollIntoView({block:'center',behavior:'smooth'}); }
       }));
       $$('[data-reqjoin]',root).forEach(b=>b.addEventListener('click',()=>{
         Store.requestJoinScout(b.dataset.reqjoin); toast('Request sent to host'); App.render();

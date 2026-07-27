@@ -144,6 +144,16 @@ window.Store = (function () {
     p.comments.push(c);
     save(); fire('commentAdded', postId, c); return c;
   }
+  // kudos — Strava-style likes; likes[] holds display names
+  function toggleLike(postId) {
+    const p = state.posts.find(x=>x.id===postId);
+    if (!p) return null;
+    if (!p.likes) p.likes = [];
+    const me = state.user ? state.user.name : 'Anon';
+    const i = p.likes.indexOf(me);
+    i < 0 ? p.likes.push(me) : p.likes.splice(i, 1);
+    save(); fire('likeSet', postId, i < 0); return i < 0;
+  }
   function posts() { return state.posts || []; }
 
   // ---- scouts (events / convoys) ------------------------------------------
@@ -203,7 +213,7 @@ window.Store = (function () {
     addAlert, removeAlert, alertFor, simulateDrop,
     addSuggestion, removeSuggestion, suggestions, suggestionById,
     setPrefs, prefs, matchScore,
-    addPost, removePost, addComment, posts,
+    addPost, removePost, addComment, toggleLike, posts,
     addScout, toggleScoutJoin, requestJoinScout, approveScoutRequest, removeScout, scouts,
     setLocation, location, setOnboarded
   };

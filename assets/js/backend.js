@@ -32,7 +32,7 @@ window.Backend = (function () {
   // ---- read: hydrate Store from the user's rows -------------------------
   async function fetchState(uid) {
     curUid = uid;
-    const [g, a, sp, st, sug, prof, posts, scouts, members] = await Promise.all([
+    const [g, a, sp, st, sug, prof, posts, likes, pcomments, scouts, members] = await Promise.all([
       sb.from('garage_vehicles').select('*').order('created_at'),
       sb.from('price_alerts').select('*'),
       sb.from('saved_parts').select('part_id'),
@@ -40,11 +40,16 @@ window.Backend = (function () {
       sb.from('track_suggestions').select('*').order('created_at', { ascending: false }),
       sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
       sb.from('community_posts').select('*').order('created_at', { ascending: false }).limit(100),
+      sb.from('post_likes').select('post_id,user_name'),
+      sb.from('post_comments').select('post_id,author,body,created_at').order('created_at'),
       sb.from('scouts').select('*').gte('date', new Date(Date.now() - 86400000).toISOString().slice(0, 10)).order('date'),
       sb.from('scout_members').select('scout_id,member_name')
     ]);
     const membersByScout = {};
     (members.data || []).forEach(m => (membersByScout[m.scout_id] = membersByScout[m.scout_id] || []).push(m.member_name));
+    const likesByPost = {}, commentsByPost = {};
+    (likes.data || []).forEach(l => (likesByPost[l.post_id] = likesByPost[l.post_id] || []).push(l.user_name));
+    (pcomments.data || []).forEach(c => (commentsByPost[c.post_id] = commentsByPost[c.post_id] || []).push({ author: c.author, body: c.body, createdAt: Date.parse(c.created_at) }));
     const garage = (g.data || []).map(r => ({
       id: r.id, make: r.make, model: r.model, fitKey: r.fit_key,
       variant: r.variant || '', years: r.years || '',
@@ -73,6 +78,7 @@ window.Backend = (function () {
       posts: (posts.data || []).map(r => ({
         id: r.id, type: r.type, body: r.body, trackId: r.track_id, lat: r.lat, lng: r.lng,
         label: r.label, author: r.author || 'Scout', vehicle: r.vehicle, mine: r.user_id === uid,
+        likes: likesByPost[r.id] || [], comments: commentsByPost[r.id] || [],
         createdAt: Date.parse(r.created_at)
       })),
       scouts: (scouts.data || []).map(r => ({
@@ -157,6 +163,16 @@ window.Backend = (function () {
       async postRemoved(_id, p) {
         if (p) await sb.from('community_posts').delete().eq('user_id', uid).eq('body', p.body);
         resync();
+      },
+      async likeSet(postId, on) {
+        const me = (await sb.from('profiles').select('name').eq('id', uid).maybeSingle()).data?.name || 'Scout';
+        if (on) await sb.from('post_likes').upsert({ post_id: postId, user_id: uid, user_name: me });
+        else await sb.from('post_likes').delete().eq('post_id', postId).eq('user_id', uid);
+        // no resync — the UI already flipped optimistically
+      },
+      async commentAdded(postId, c) {
+        await sb.from('post_comments').insert({ post_id: postId, user_id: uid, author: c.author, body: c.body });
+        // local state already has it; resync would lose scroll position
       },
       async scoutAdded(sc) {
         const { data } = await sb.from('scouts').insert({
