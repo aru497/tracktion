@@ -83,6 +83,8 @@ window.App = (function () {
   }
 
   function mountOnboard() {
+    // Already showing? Never stack a second popup (nav/auth events re-enter here).
+    if (document.getElementById('ob-scrim')) return;
     // Ensure the main app shell exists in the background
     if (!document.getElementById('main')) {
       document.body.innerHTML = chrome();
