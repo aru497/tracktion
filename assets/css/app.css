@@ -494,6 +494,25 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.5; }
   .trk .stat-v { font-size: 15px; }
 }
 
+/* ---- brand film placements (login hero, home hero, empty states) ---- */
+.vhero, .vempty {
+  position: relative; display: block; overflow: hidden; border-radius: var(--radius);
+  border: 1px solid var(--line); box-shadow: var(--shadow); margin-bottom: 20px;
+  min-height: 150px; background: url('../img/terrain/desert.jpg') center/cover; /* reduced-motion + slow-net fallback */
+}
+.vempty { min-height: 200px; }
+.vhero-film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vhero-scrim { position: absolute; inset: 0; background: linear-gradient(185deg, rgba(20,18,14,.1) 30%, rgba(20,18,14,.72) 100%); }
+.vhero-txt {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: inherit; padding: 18px 20px; color: #FFF;
+}
+.vhero-txt b { font-family: var(--brand); font-size: 21px; letter-spacing: -0.02em; }
+.vhero-txt > span:not(.btn) { font-size: 13px; opacity: .92; max-width: 46ch; margin-top: 3px; }
+.vhero:hover .vhero-film { filter: saturate(1.1); }
+@media (min-width: 780px) { .vhero { min-height: 190px; } }
+@media (prefers-reduced-motion: reduce) { .vhero-film { display: none; } }
+
 /* feed column width — social feeds read best narrow */
 .feedcol { max-width: 640px; margin: 0 auto; }
 @media (max-width: 779px) { .feedcol { max-width: none; } }

@@ -3,6 +3,9 @@
 window.Views = (function () {
   const { icon, money, esc, stars, toast, sheet, $, $$ } = UI;
   const DB = window.DB;
+  // brand film (Higgsfield launch teaser) — reused across login, home hero, empty states
+  const TEASER_MP4 = 'https://d8j0ntlcm91z4.cloudfront.net/user_3GUt22WNlgn1g3XxIzwf3DVxKos/hf_20260726_140943_8540b07c-247b-41e7-8c58-f0e7fedd6bd5.mp4';
+  const filmTag = (cls = '') => `<video class="${cls}" autoplay muted loop playsinline preload="metadata" aria-hidden="true"><source src="${TEASER_MP4}" type="video/mp4"></video>`;
 
   const catById  = Object.fromEntries(DB.categories.map(c => [c.id, c]));
   const partById = Object.fromEntries(DB.parts.map(p => [p.id, p]));
@@ -182,8 +185,18 @@ window.Views = (function () {
           <h1 class="display" style="font-size:30px;margin-top:4px">G'day, ${esc(firstName)}.</h1></div>
         </div>
 
-        <a class="searchbar reveal" href="#/parts" style="margin:16px 0 22px">
+        <a class="searchbar reveal" href="#/parts" style="margin:16px 0 18px">
           ${icon('search')}<input placeholder="Search parts — snorkel, lift kit, boards…" readonly>
+        </a>
+
+        <a class="vhero reveal" href="#/tracks" aria-label="Open the track map">
+          ${filmTag('vhero-film')}
+          <div class="vhero-scrim"></div>
+          <div class="vhero-txt">
+            <b>Gear up. Head out.</b>
+            <span>${DB.tracks.length}+ tracks mapped across Australia — matched to your rig and style.</span>
+            <span class="btn btn-clay btn-sm" style="align-self:flex-start;margin-top:10px">${icon('map')} Find your next track</span>
+          </div>
         </a>
 
         ${rigBlock}
@@ -943,7 +956,15 @@ window.Views = (function () {
           ${sc.requests.map(ru => `<div class="spread" style="margin-bottom:4px"><span class="row" style="gap:8px">${avatar(ru,26)}<span class="meta">${esc(ru)}</span></span><button class="btn btn-ghost btn-sm" data-approve="${sc.id}" data-ru="${esc(ru)}">Approve</button></div>`).join('')}
           </div>` : ''}
       </article>`;
-    }).join('') : `<div class="card empty">${icon('route')}<div>No scouts planned near you. Create one — solo trips are better as convoys.</div></div>`;
+    }).join('') : `<div class="vempty reveal">
+        ${filmTag('vhero-film')}
+        <div class="vhero-scrim"></div>
+        <div class="vhero-txt">
+          <b>No scouts planned near you</b>
+          <span>Solo trips are better as convoys — create one and the crew will come.</span>
+          <button class="btn btn-clay btn-sm" id="emptyscout" style="align-self:flex-start;margin-top:10px">${icon('route')} Create a scout</button>
+        </div>
+      </div>`;
 
     return { html: `<div class="view"><div class="wrap section">
       <div class="spread">
@@ -961,6 +982,7 @@ window.Views = (function () {
     after(root) {
       $$('.seg [data-s]',root).forEach(b=>b.addEventListener('click',()=>App.nav('/community'+(b.dataset.s==='scouts'?'/scouts':''))));
       $('#composebtn',root).addEventListener('click',()=> seg==='scouts'?openScoutSheet():openPostSheet());
+      const es = $('#emptyscout',root); es && es.addEventListener('click', openScoutSheet);
       $$('[data-join]',root).forEach(b=>b.addEventListener('click',()=>{
         const r=Store.toggleScoutJoin(b.dataset.join);
         if(r===null) toast('That convoy is full',false); else toast(r?'You’re in — see you out there':'Left the convoy');
