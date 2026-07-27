@@ -51,7 +51,7 @@ window.Views = (function () {
     let grid = '';
     for (let x = 20; x < w; x += 34) grid += `<line x1="${x}" y1="0" x2="${x + 10}" y2="${h}" stroke="#FFFFFF" stroke-width="2" opacity=".55"/>`;
     for (let y2 = 18; y2 < h; y2 += 30) grid += `<line x1="0" y1="${y2}" x2="${w}" y2="${y2 - 6}" stroke="#FFFFFF" stroke-width="2" opacity=".45"/>`;
-    return `<svg viewBox="0 0 ${w} ${h}" class="mmap${opts.cls ? ' ' + opts.cls : ''}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Route preview">
+    return `<svg viewBox="0 0 ${w} ${h}" class="mmap${opts.cls ? ' ' + opts.cls : ''}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Route preview: ${esc(t.name || '')}">
       <rect width="${w}" height="${h}" fill="#EEF0EA"/>${blobs}${grid}
       <path d="${d}" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="${d}" fill="none" stroke="#FC4C02" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -73,17 +73,23 @@ window.Views = (function () {
       <path d="${line}" fill="none" stroke="#FC4C02" stroke-width="2" stroke-linecap="round"/>
     </svg>`;
   }
-  // Strava stat band: LABEL over big tabular number, hairline dividers between
+  // Strava stat band: LABEL over big tabular number, hairline dividers between.
+  // 4th tuple slot marks a word value (sans, not bold-mono).
   function statRow(items) {
-    return `<div class="statrow">` + items.map(([label, val, sub]) =>
-      `<div class="stat"><span class="stat-l">${label}</span><span class="stat-v">${val}${sub ? `<em>${sub}</em>` : ''}</span></div>`).join('') + `</div>`;
+    return `<div class="statrow">` + items.map(([label, val, sub, word]) =>
+      `<div class="stat"><span class="stat-l">${label}</span><span class="stat-v${word ? ' stat-v--word' : ''}">${val}${sub ? `<em>${sub}</em>` : ''}</span></div>`).join('') + `</div>`;
   }
+  // difficulty/type values reach templates from user-suggestable rows — whitelist
+  // anything used in class names / CSS vars, escape anything printed.
+  const DIFFS = { easy: 1, medium: 1, hard: 1, extreme: 1 };
+  const dsafe = (d) => DIFFS[d] ? d : 'medium';
+  const gradeCell = (t) => ['Grade', `<span style="color:var(--${dsafe(t.difficulty)}-ink)">${esc(t.difficulty)}</span>`, '', true];
   // avatar chip — per-name hue so the feed reads human, not template
   function avatar(name, size = 40) {
     const hues = [['#FFF0E6', '#C83C00'], ['#E8F1EC', '#1B753A'], ['#EDEDF3', '#4A4A55'], ['#FEF3E9', '#B26313']];
     const i = (name || '?').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % hues.length;
     const init = (name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
-    return `<span class="av" style="width:${size}px;height:${size}px;background:${hues[i][0]};color:${hues[i][1]};font-size:${Math.round(size * 0.36)}px">${init}</span>`;
+    return `<span class="av" aria-hidden="true" style="width:${size}px;height:${size}px;background:${hues[i][0]};color:${hues[i][1]};font-size:${Math.round(size * 0.36)}px">${esc(init)}</span>`;
   }
 
   // effective (lowest) price for a part across its offers
@@ -219,11 +225,11 @@ window.Views = (function () {
           <b class="trk-name">${esc(t.name)}</b>
           ${m != null ? `<span class="tag tag-best">${m}%</span>` : (d != null ? `<span class="meta mono-num">${d} km</span>` : '')}
         </div>
-        <div class="meta" style="font-size:12.5px">${esc(t.region)}, ${t.state} · <span style="color:var(--${t.difficulty});font-weight:600;text-transform:capitalize">${t.difficulty}</span></div>
+        <div class="meta" style="font-size:12.5px">${esc(t.region)}, ${esc(t.state)} · <span style="color:var(--${dsafe(t.difficulty)}-ink);font-weight:600;text-transform:capitalize">${esc(t.difficulty)}</span></div>
         ${statRow([
           ['Distance', `${t.lengthKm}`, 'km'],
           ['Time', `${t.hours}`, 'h'],
-          ...(d != null ? [['Away', `${d}`, 'km']] : [['Terrain', `<span style="text-transform:capitalize;font-size:15px">${t.type}</span>`, '']])
+          ...(d != null ? [['Away', `${d}`, 'km']] : [['Terrain', esc(t.type), '', true]])
         ])}
       </div>
     </a>`;
@@ -307,7 +313,7 @@ window.Views = (function () {
           </div>
           <div class="row" style="gap:10px;margin-top:4px">
             <a class="btn btn-clay grow" href="${best.url}" target="_blank" rel="noopener">Buy at ${DB.retailerById[best.retailer].name} · ${money(priceOf(best))}</a>
-            <button class="btn btn-ghost" id="savebtn" aria-pressed="${save}">${icon(save?'heartF':'heart')}</button>
+            <button class="btn btn-ghost" id="savebtn" aria-pressed="${save}" aria-label="Save part">${icon(save?'heartF':'heart')}</button>
           </div>
         </div>
       </div>
@@ -354,6 +360,7 @@ window.Views = (function () {
       $('#savebtn', root).addEventListener('click', (e) => {
         const on = Store.toggleSavedPart(p.id);
         e.currentTarget.innerHTML = icon(on ? 'heartF' : 'heart');
+        e.currentTarget.setAttribute('aria-pressed', String(on));
         toast(on ? 'Saved to your garage' : 'Removed from saved');
       });
       $('#alertbtn', root).addEventListener('click', () => openAlertSheet(p, best));
@@ -486,14 +493,14 @@ window.Views = (function () {
         <div style="position:relative;height:210px">
           <img src="assets/img/terrain/${UI.typeIcon[t.type] ? t.type : 'forest'}.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
           <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(28,26,22,.55))"></div>
-          <span class="tag d-${t.difficulty}" style="position:absolute;left:14px;bottom:12px"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span>
+          <span class="tag d-${dsafe(t.difficulty)}" style="position:absolute;left:14px;bottom:12px"><span class="dot d-${dsafe(t.difficulty)}"></span>${esc(t.difficulty)}</span>
         </div>
         <div class="card-pad">
           <div class="spread"><div><div class="eyebrow">${esc(t.region)}, ${t.state}</div>
           <h1 class="display" style="font-size:26px;margin-top:4px">${esc(t.name)}</h1></div>
-          <button class="btn btn-ghost" id="savetrk" aria-pressed="${saved}">${icon(saved?'heartF':'heart')}</button></div>
+          <button class="btn btn-ghost" id="savetrk" aria-pressed="${saved}" aria-label="Save track">${icon(saved?'heartF':'heart')}</button></div>
           <div class="row wrap-r" style="gap:8px;margin-top:12px">
-            <span class="tag d-${t.difficulty}"><span class="dot d-${t.difficulty}"></span>${t.difficulty}</span>
+            <span class="tag d-${dsafe(t.difficulty)}"><span class="dot d-${dsafe(t.difficulty)}"></span>${esc(t.difficulty)}</span>
             <span class="tag">${icon(UI.typeIcon[t.type])} ${t.type}</span>
             <span class="tag">${icon('ruler')} ${t.lengthKm} km</span>
             <span class="tag">${icon('clock')} ${t.hours}h</span>
@@ -504,8 +511,7 @@ window.Views = (function () {
           ${statRow([
             ['Distance', `${t.lengthKm}`, 'km'],
             ['Est. time', `${t.hours}`, 'h'],
-            ['Grade', `<span style="color:var(--${t.difficulty});font-size:15px;text-transform:capitalize">${t.difficulty}</span>`, ''],
-            ...(d!=null?[['From you', `${d}`, 'km']]:[])
+            gradeCell(t)
           ])}
           <p class="muted" style="margin:14px 0 0">${esc(t.blurb)}</p>
         </div>
@@ -539,6 +545,7 @@ window.Views = (function () {
       $('#savetrk', root).addEventListener('click', (e) => {
         const on = Store.toggleSavedTrack(t.id);
         e.currentTarget.innerHTML = icon(on ? 'heartF' : 'heart');
+        e.currentTarget.setAttribute('aria-pressed', String(on));
         toast(on ? 'Track saved' : 'Removed from saved');
       });
     }};
@@ -597,10 +604,10 @@ window.Views = (function () {
         <button class="btn btn-clay btn-sm" id="suggestbtn2">${icon('plus')} Suggest</button></div>
       ${mySuggestions.length ? `<div class="grid" style="grid-template-columns:1fr;gap:10px">${mySuggestions.map(t => `
         <div class="card" style="display:flex;gap:0;overflow:hidden;align-items:stretch">
-          <a class="track-ico d-${t.difficulty}" href="#/track/${t.id}" style="border-radius:0;width:60px;background:var(--${t.difficulty}-wash);color:var(--${t.difficulty})">${icon(UI.typeIcon[t.type]||'map')}</a>
+          <a class="track-ico d-${dsafe(t.difficulty)}" href="#/track/${t.id}" style="border-radius:0;width:60px;background:var(--${dsafe(t.difficulty)}-wash);color:var(--${dsafe(t.difficulty)}-ink)">${icon(UI.typeIcon[t.type]||'map')}</a>
           <a class="card-pad" href="#/track/${t.id}" style="flex:1;padding:12px 14px">
             <div class="spread"><b style="font-size:14.5px">${esc(t.name)}</b><span class="tag" style="background:var(--olive-wash);color:var(--olive);border:0">Pending</span></div>
-            <div class="meta" style="font-size:12px">${esc(t.region)}, ${t.state} · ${t.difficulty}</div>
+            <div class="meta" style="font-size:12px">${esc(t.region)}, ${esc(t.state)} · ${esc(t.difficulty)}</div>
           </a>
           <button class="btn btn-ghost btn-sm" data-delsug="${t.id}" aria-label="Remove" style="border:0;border-left:1px solid var(--line);border-radius:0">${icon('x')}</button>
         </div>`).join('')}</div>`
@@ -875,24 +882,24 @@ window.Views = (function () {
             <b>${esc(p.author)}</b>
             <span class="meta">${ago(p.createdAt)}${p.vehicle?` · ${esc(p.vehicle)}`:''}${d!=null?` · ${d} km away`:(p.label?` · ${esc(p.label)}`:'')}</span>
           </div>
-          <span class="ftype" style="background:${T.wash};color:${T.ink}">${icon(T.ic)} ${T.label}</span>
+          <span class="ftype" style="background:${T.wash};color:${T.ink}">${icon(T.ic)} <span class="lbl">${T.label}</span></span>
         </header>
         <p class="fbody">${esc(p.body)}</p>
         ${trk ? `<a class="fmap" href="#/track/${trk.id}" aria-label="Open ${esc(trk.name)}">
           ${miniMap(trk, 640, 210)}
-          <div class="fmap-cap"><div><b>${esc(trk.name)}</b><span class="meta"> · ${esc(trk.region)}, ${trk.state}</span></div>${icon('chev')}</div>
+          <div class="fmap-cap"><div><b>${esc(trk.name)}</b><span class="meta"> · ${esc(trk.region)}, ${esc(trk.state)}</span></div>${icon('chev')}</div>
         </a>
-        ${statRow([['Distance', `${trk.lengthKm}`, 'km'], ['Time', `${trk.hours}`, 'h'], ['Grade', `<span style="color:var(--${trk.difficulty});font-size:15px;text-transform:capitalize">${trk.difficulty}</span>`, '']])}` : ''}
+        ${statRow([['Distance', `${trk.lengthKm}`, 'km'], ['Time', `${trk.hours}`, 'h'], gradeCell(trk)])}` : ''}
         <footer class="fsoc">
-          <button class="soc-btn ${liked?'on':''}" data-kudos="${p.id}" aria-pressed="${liked}">${icon(liked?'kudosF':'kudos')} <span class="mono-num">${likes.length || ''}</span></button>
-          <button class="soc-btn" data-cfocus="${p.id}">${icon('comment')} <span class="mono-num">${nc || ''}</span></button>
-          ${likes.length ? `<span class="meta" style="margin-left:auto;font-size:12px">${esc(likes.slice(0,2).join(', '))}${likes.length>2?` + ${likes.length-2} more`:''} gave kudos</span>` : ''}
+          <button class="soc-btn ${liked?'on':''}" data-kudos="${p.id}" aria-pressed="${liked}" aria-label="Give kudos">${icon(liked?'kudosF':'kudos')} <span class="mono-num">${likes.length || ''}</span></button>
+          <button class="soc-btn" data-cfocus="${p.id}" aria-label="Comment">${icon('comment')} <span class="mono-num">${nc || ''}</span></button>
+          <span class="meta ksum" data-ksum="${p.id}" style="margin-left:auto;font-size:12px">${likes.length ? `${esc(likes.slice(0,2).join(', '))}${likes.length>2?` + ${likes.length-2} more`:''} gave kudos` : ''}</span>
         </footer>
         ${nc ? `<div class="fcomments">` + p.comments.map(c => `
           <div class="fcomment">${avatar(c.author, 26)}<div><b>${esc(c.author)}</b> <span class="meta" style="font-size:11px">${ago(c.createdAt)}</span><p>${esc(c.body)}</p></div></div>`).join('') + `</div>` : ''}
         <div class="fcompose">
           ${avatar(me || 'You', 28)}
-          <input class="input" placeholder="Add a comment…" data-cid="${p.id}">
+          <input class="input" placeholder="Add a comment…" aria-label="Add a comment" data-cid="${p.id}">
           <button class="btn btn-clay btn-sm" data-csend="${p.id}">Post</button>
         </div>
       </article>`;
@@ -905,7 +912,7 @@ window.Views = (function () {
       const avs = sc.members.slice(0, 4).map(mn => avatar(mn, 28)).join('');
       return `<article class="fcard reveal">
         <header class="fhead">
-          <div class="dblock" aria-hidden="true"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString('en-AU',{month:'short'})}</span></div>
+          <div class="dblock"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString('en-AU',{month:'short'})}</span></div>
           <div class="fhead-t">
             <b>${esc(sc.title)}</b>
             <span class="meta">${dt.toLocaleDateString('en-AU',{weekday:'long'})} · hosted by ${esc(sc.host)}${d!=null?` · ${d} km away`:''}</span>
@@ -914,9 +921,9 @@ window.Views = (function () {
         </header>
         ${t ? `<a class="fmap" href="#/track/${t.id}" aria-label="Open ${esc(t.name)}">
           ${miniMap(t, 640, 180)}
-          <div class="fmap-cap"><div><b>${esc(t.name)}</b><span class="meta"> · ${esc(t.region)}, ${t.state}</span></div>${icon('chev')}</div>
+          <div class="fmap-cap"><div><b>${esc(t.name)}</b><span class="meta"> · ${esc(t.region)}, ${esc(t.state)}</span></div>${icon('chev')}</div>
         </a>
-        ${statRow([['Distance', `${t.lengthKm}`, 'km'], ['Time', `${t.hours}`, 'h'], ['Grade', `<span style="color:var(--${t.difficulty});font-size:15px;text-transform:capitalize">${t.difficulty}</span>`, '']])}` : ''}
+        ${statRow([['Distance', `${t.lengthKm}`, 'km'], ['Time', `${t.hours}`, 'h'], gradeCell(t)])}` : ''}
         ${sc.notes?`<p class="fbody" style="margin-top:10px">${esc(sc.notes)}</p>`:''}
         <footer class="fsoc" style="gap:12px">
           <span class="avstack">${avs}</span>
@@ -959,13 +966,30 @@ window.Views = (function () {
         if(r===null) toast('That convoy is full',false); else toast(r?'You’re in — see you out there':'Left the convoy');
         App.render();
       }));
-      $$('[data-csend]',root).forEach(b=>b.addEventListener('click',()=>{
-        const inp = $(`input[data-cid="${b.dataset.csend}"]`, root);
-        if (inp && inp.value.trim()) { Store.addComment(b.dataset.csend, inp.value.trim()); App.render(); }
-      }));
-      // enter-to-send in comment composers
+      // comments — in-place append like kudos: no re-render, no scroll jump
+      function postComment(id) {
+        const inp = $(`input[data-cid="${id}"]`, root);
+        if (!inp || !inp.value.trim()) return;
+        const c = Store.addComment(id, inp.value.trim());
+        if (!c) return;
+        const card = inp.closest('.fcard');
+        if (card) {
+          let list = card.querySelector('.fcomments');
+          if (!list) {
+            list = document.createElement('div'); list.className = 'fcomments';
+            card.insertBefore(list, card.querySelector('.fcompose'));
+          }
+          list.insertAdjacentHTML('beforeend',
+            `<div class="fcomment">${avatar(c.author, 26)}<div><b>${esc(c.author)}</b> <span class="meta" style="font-size:11px">just now</span><p>${esc(c.body)}</p></div></div>`);
+          const cnt = card.querySelector(`[data-cfocus="${id}"] .mono-num`);
+          if (cnt) { const p = Store.posts().find(x => x.id === id); cnt.textContent = (p && p.comments) ? p.comments.length : ''; }
+        }
+        inp.value = '';
+      }
+      $$('[data-csend]',root).forEach(b=>b.addEventListener('click',()=>postComment(b.dataset.csend)));
       $$('input[data-cid]',root).forEach(inp=>inp.addEventListener('keydown',(e)=>{
-        if (e.key==='Enter' && inp.value.trim()) { Store.addComment(inp.dataset.cid, inp.value.trim()); App.render(); }
+        if (e.isComposing || e.keyCode === 229 || e.repeat) return;   // don't post mid-IME composition
+        if (e.key==='Enter') postComment(inp.dataset.cid);
       }));
       // kudos — optimistic flip, no full re-render (keeps scroll position)
       $$('[data-kudos]',root).forEach(b=>b.addEventListener('click',()=>{
@@ -974,8 +998,10 @@ window.Views = (function () {
         b.classList.toggle('on', on);
         b.setAttribute('aria-pressed', String(on));
         const p = Store.posts().find(x=>x.id===b.dataset.kudos);
-        const n = (p && p.likes) ? p.likes.length : 0;
-        b.innerHTML = `${icon(on?'kudosF':'kudos')} <span class="mono-num">${n || ''}</span>`;
+        const likes = (p && p.likes) || [];
+        b.innerHTML = `${icon(on?'kudosF':'kudos')} <span class="mono-num">${likes.length || ''}</span>`;
+        const sum = root.querySelector(`[data-ksum="${b.dataset.kudos}"]`);
+        if (sum) sum.innerHTML = likes.length ? `${esc(likes.slice(0,2).join(', '))}${likes.length>2?` + ${likes.length-2} more`:''} gave kudos` : '';
       }));
       $$('[data-cfocus]',root).forEach(b=>b.addEventListener('click',()=>{
         const inp = $(`input[data-cid="${b.dataset.cfocus}"]`, root);
@@ -1041,8 +1067,10 @@ window.Views = (function () {
     $('#screate',sh.el).addEventListener('click',()=>{
       const title=$('#stitle',sh.el).value.trim();
       if(!title){$('#stitle',sh.el).focus();return toast('Give it a name',false);}
-      Store.addScout({ title, trackId:$('#strack',sh.el).value, date:$('#sdate',sh.el).value,
-        capacity:+($('#scap',sh.el).value||0)||null, notes:$('#snotes',sh.el).value.trim(), inviteOnly:$('#sinvite',sh.el).checked });
+      const dv=$('#sdate',sh.el).value;
+      if(!dv || isNaN(Date.parse(dv))){$('#sdate',sh.el).focus();return toast('Pick a date',false);}
+      Store.addScout({ title, trackId:$('#strack',sh.el).value, date:dv,
+        capacity:+($('#scap',sh.el).value||0)||null, notes:$('#snotes',sh.el).value.trim(), inviteOnly:!!($('#sinvite',sh.el)&&$('#sinvite',sh.el).checked) });
       sh.close(); toast('Scout created — it’s live for the crew'); App.nav('/community/scouts');
     });
   }

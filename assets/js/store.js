@@ -130,7 +130,7 @@ window.Store = (function () {
 
   // ---- community posts ----------------------------------------------------
   function addPost(p) {
-    const post = { id: 'p_' + uid(), ...p, author: state.user ? state.user.name : 'Anon',
+    const post = { id: 'p_' + uid(), ...p, author: state.user ? state.user.name : 'Scout',
       createdAt: Date.now(), comments: [] };
     state.posts.unshift(post);
     save(); fire('postAdded', post); return post;
@@ -140,7 +140,7 @@ window.Store = (function () {
     const p = state.posts.find(x=>x.id===postId);
     if (!p) return null;
     if (!p.comments) p.comments = [];
-    const c = { author: state.user ? state.user.name : 'Anon', body, createdAt: Date.now() };
+    const c = { author: state.user ? state.user.name : 'Scout', body, createdAt: Date.now() };
     p.comments.push(c);
     save(); fire('commentAdded', postId, c); return c;
   }
@@ -149,7 +149,7 @@ window.Store = (function () {
     const p = state.posts.find(x=>x.id===postId);
     if (!p) return null;
     if (!p.likes) p.likes = [];
-    const me = state.user ? state.user.name : 'Anon';
+    const me = state.user ? state.user.name : 'Scout';
     const i = p.likes.indexOf(me);
     i < 0 ? p.likes.push(me) : p.likes.splice(i, 1);
     save(); fire('likeSet', postId, i < 0); return i < 0;
@@ -158,14 +158,14 @@ window.Store = (function () {
 
   // ---- scouts (events / convoys) ------------------------------------------
   function addScout(sc) {
-    const me = state.user ? state.user.name : 'Anon';
+    const me = state.user ? state.user.name : 'Scout';
     const scout = { id: 'sc_' + uid(), ...sc, host: me, members: [me], requests: [], createdAt: Date.now() };
     state.scouts.unshift(scout);
     save(); fire('scoutAdded', scout); return scout;
   }
   function toggleScoutJoin(id) {
     const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
-    const me = state.user ? state.user.name : 'Anon';
+    const me = state.user ? state.user.name : 'Scout';
     const i = sc.members.indexOf(me);
     if (i < 0) { 
       if (sc.inviteOnly) return false; // Handled by requestJoinScout
@@ -177,7 +177,7 @@ window.Store = (function () {
   }
   function requestJoinScout(id) {
     const sc = state.scouts.find(x => x.id === id); if (!sc) return false;
-    const me = state.user ? state.user.name : 'Anon';
+    const me = state.user ? state.user.name : 'Scout';
     if (!sc.requests) sc.requests = [];
     if (!sc.requests.includes(me) && !sc.members.includes(me)) {
       sc.requests.push(me);
